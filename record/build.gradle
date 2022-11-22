@@ -1,0 +1,13 @@
+plugins {
+    id 'com.rebirth.qarobot.java-library-conventions'
+}
+
+dependencies {
+    implementation project(":commons")
+    // https://mvnrepository.com/artifact/com.github.stephenc.monte/monte-screen-recorder
+    implementation "com.github.stephenc.monte:monte-screen-recorder:$selenium_recorder_version"
+}
+
+test {
+    useJUnitPlatform()
+}

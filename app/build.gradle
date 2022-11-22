@@ -1,0 +1,53 @@
+plugins {
+    id 'com.rebirth.qarobot.java-application-conventions'
+}
+
+dependencies {
+
+    implementation project(":commons")
+    implementation project(":scraping")
+    implementation project(":record")
+
+    // https://mvnrepository.com/artifact/org.seleniumhq.selenium/selenium-java
+    implementation "org.seleniumhq.selenium:selenium-java:$selenium_version"
+    // https://mvnrepository.com/artifact/com.github.stephenc.monte/monte-screen-recorder
+    implementation "com.github.stephenc.monte:monte-screen-recorder:$selenium_recorder_version"
+    // https://mvnrepository.com/artifact/com.thedeanda/lorem
+    implementation "com.thedeanda:lorem:$lorem_version"
+    // https://mvnrepository.com/artifact/com.mashape.unirest/unirest-java
+    implementation "com.konghq:unirest-java:$unirest_version"
+    // https://mvnrepository.com/artifact/com.konghq/unirest-objectmapper-jackson
+    implementation "com.konghq:unirest-objectmapper-jackson:$unirest_version"
+    // https://mvnrepository.com/artifact/io.reactivex.rxjava3/rxjava
+    implementation "io.reactivex.rxjava3:rxjava:$rx_version"
+    // https://mvnrepository.com/artifact/org.freemarker/freemarker
+    implementation "org.freemarker:freemarker:$freemarker_version"
+
+}
+
+test {
+    useJUnitPlatform()
+}
+
+application {
+    mainClass.set("com.rebirth.qarobot.app.main.Main")
+}
+
+scabbard {
+    enabled true
+    fullBindingGraphValidation true
+    qualifiedNames true
+    outputFormat "svg"
+}
+
+distributions {
+    main {
+        distributionBaseName = 'QaRobot'
+        contents {
+            from(projectDir.absolutePath) {
+                include("dashboardtemplate\\**")
+                include("webdrivers\\**")
+            }
+        }
+    }
+}

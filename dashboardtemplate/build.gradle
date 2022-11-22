@@ -1,0 +1,13 @@
+plugins {
+    id "com.github.node-gradle.node" version "3.5.0"
+}
+
+task startProject(type: NpmTask) {
+    // install the express package only
+    args = ['start']
+}
+
+task buildProject(type: NpmTask) {
+    // install the express package only
+    args = ['run', 'build']
+}

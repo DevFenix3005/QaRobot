@@ -1,0 +1,31 @@
+plugins {
+    id 'com.rebirth.qarobot.java-common-conventions'
+}
+
+dependencies {
+    // https://mvnrepository.com/artifact/com.fasterxml.jackson.dataformat/jackson-dataformat-yaml
+    implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:$jackson_version"
+    // https://mvnrepository.com/artifact/com.fasterxml.jackson.dataformat/jackson-dataformat-xml
+    implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:$jackson_version"
+    // https://mvnrepository.com/artifact/com.fasterxml.jackson.datatype/jackson-datatype-jsr310
+    implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:$jackson_version"
+    // https://mvnrepository.com/artifact/com.github.freva/ascii-table
+    implementation "com.github.freva:ascii-table:$asciitable_version"
+
+}
+
+test {
+    useJUnitPlatform()
+}
+
+
+jaxb {
+    // generate java code from schema
+    javaGen {
+        //generates a 'project' schema file from existing java code
+        posConfig {
+            packageName = 'com.rebirth.qarobot.commons.models.dtos.qarobot'
+            schema = file('src/main/resources/com/rebirth/qarobot/commons/xsd/qarobot_v2.xsd')
+        }
+    }
+}

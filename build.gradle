@@ -1,0 +1,27 @@
+plugins {
+    id "scabbard.gradle" version "0.5.0" apply false
+    id "com.intershop.gradle.jaxb" version "5.1.0" apply false
+    //id 'com.github.johnrengelman.shadow' version '7.1.2' apply false
+}
+
+ext {
+    dagger_version = "2.44.2"
+    jackson_version = "2.14.0"
+    selenium_version = "4.6.0"
+    selenium_recorder_version = "0.7.7.0"
+    lorem_version = "2.1"
+    guava_version = "31.1-jre"
+    l4j2_version = "2.19.0"
+    lombok_version = "1.18.24"
+    junit_version = "5.9.0"
+    unirest_version = "3.13.12"
+    rhino_version = "1.7.14"
+    apachepoi_version = "5.0.0"
+    asciitable_version = "1.8.0"
+    rx_version = "3.1.5"
+    freemarker_version = "2.3.31"
+    rhino_version = "1.7.14"
+    license3j_version = "3.2.0"
+    jsonpath_version = "2.7.0"
+}
+

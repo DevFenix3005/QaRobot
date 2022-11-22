@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="https://www.qarobot.rebirth.com.mx"
+           xmlns="https://www.qarobot.rebirth.com.mx"
+           elementFormDefault="qualified">
+
+    <xs:simpleType name="restMethod">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="GET"/>
+            <xs:enumeration value="POST"/>
+            <xs:enumeration value="PUT"/>
+            <xs:enumeration value="DELETE"/>
+            <xs:enumeration value="PATCH"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="KindOfVerifyAction">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="CHILDS"/>
+            <xs:enumeration value="SELECT"/>
+            <xs:enumeration value="ELEMENT"/>
+            <xs:enumeration value="HASCHILDS"/>
+            <xs:enumeration value="SCRIPT"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="kindOfClick">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="SINGLE"/>
+            <xs:enumeration value="DOUBLE"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="kindOfBy">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="XPATH"/>
+            <xs:enumeration value="CSS"/>
+            <xs:enumeration value="ID"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:complexType name="setType">
+        <xs:attribute name="key" type="xs:string" use="required"/>
+        <xs:attribute name="value" type="xs:string" use="required"/>
+    </xs:complexType>
+    <xs:complexType name="itemType">
+        <xs:attribute name="value" type="xs:string" use="required"/>
+    </xs:complexType>
+    <xs:complexType name="listType">
+        <xs:sequence>
+            <xs:element name="item" type="itemType" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="selectorType">
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attribute type="kindOfBy" name="by" default="XPATH"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    <xs:complexType name="baseActionType">
+        <xs:attribute name="id" type="xs:string"/>
+        <xs:attribute name="desc" type="xs:string" use="required"/>
+        <xs:attribute name="order" type="xs:unsignedInt" use="required"/>
+        <xs:attribute name="skip" type="xs:boolean" default="false"/>
+    </xs:complexType>
+    <xs:complexType name="baseActionTypeWithTimeout">
+        <xs:complexContent>
+            <xs:extension base="baseActionType">
+                <xs:attribute name="timeout" type="xs:unsignedLong" use="required"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="baseActionTypeWithSelectorAndTimeOut">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithTimeout">
+                <xs:sequence>
+                    <xs:element name="selector" type="selectorType" maxOccurs="unbounded"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="baseActionTypeWithSelectorLambdaAndTimeOut">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithTimeout">
+                <xs:sequence>
+                    <xs:element name="selector" type="selectorType" minOccurs="0" maxOccurs="unbounded"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+
+    <xs:complexType name="openActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithTimeout">
+                <xs:attribute name="url" type="xs:string" use="required"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="includeActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionType">
+                <xs:attribute name="set" type="xs:string" use="required"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="cycleActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithTimeout">
+                <xs:sequence>
+                    <xs:choice maxOccurs="unbounded">
+                        <xs:element name="open" type="openActionType" maxOccurs="unbounded"/>
+                        <xs:element name="include" type="includeActionType" maxOccurs="unbounded"/>
+                        <xs:element name="delay" type="delayActionType" maxOccurs="unbounded"/>
+                        <xs:element name="stop" type="stopActionType" maxOccurs="unbounded"/>
+                        <xs:element name="rest" type="restActionType" maxOccurs="unbounded"/>
+                        <xs:element name="switchtab" type="switchtabActionType" maxOccurs="unbounded"/>
+                        <xs:element name="script" type="scriptActionType" maxOccurs="unbounded"/>
+                        <xs:element name="click" type="clickActionType" maxOccurs="unbounded"/>
+                        <xs:element name="choose" type="chooseActionType" maxOccurs="unbounded"/>
+                        <xs:element name="read" type="readActionType" maxOccurs="unbounded"/>
+                        <xs:element name="write" type="writeActionType" maxOccurs="unbounded"/>
+                        <xs:element name="verify" type="verifyActionType" maxOccurs="unbounded"/>
+                    </xs:choice>
+                </xs:sequence>
+                <xs:attribute name="times" type="xs:unsignedInt" use="required"/>
+                <xs:attribute name="include" type="xs:string"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="delayActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithTimeout"/>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="stopActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionType">
+                <xs:attribute name="kill" type="xs:boolean" default="true"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="restActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithTimeout">
+                <xs:sequence>
+                    <xs:element name="header" type="setType" maxOccurs="unbounded"/>
+                    <xs:element name="body" type="xs:string"/>
+                    <xs:element name="storage" type="setType" minOccurs="0" maxOccurs="unbounded"/>
+                </xs:sequence>
+                <xs:attribute name="url" type="xs:string" use="required"/>
+                <xs:attribute name="method" type="restMethod" use="required"/>
+                <xs:attribute name="ignoreverifications" type="xs:boolean" default="false"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="switchtabActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithTimeout">
+                <xs:attribute name="tabnumber" type="xs:integer" use="required"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="scriptActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithTimeout">
+                <xs:sequence>
+                    <xs:element name="body" type="xs:string"/>
+                </xs:sequence>
+                <xs:attribute name="set" type="xs:string"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="clickActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithSelectorAndTimeOut">
+                <xs:attribute name="click" type="kindOfClick" default="SINGLE"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="chooseActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithSelectorAndTimeOut">
+                <xs:sequence>
+                    <xs:element name="list" type="listType" minOccurs="0"/>
+                </xs:sequence>
+                <xs:attribute name="value" type="xs:string" default="RANDOM_LIST"/>
+                <xs:attribute name="set" type="xs:string"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="readActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithSelectorAndTimeOut">
+                <xs:attribute name="set" type="xs:string" use="required"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="writeActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithSelectorAndTimeOut">
+                <xs:attribute name="value" type="xs:string" use="required"/>
+                <xs:attribute name="lazy" type="xs:boolean" default="false"/>
+                <xs:attribute name="enter" type="xs:boolean" default="true"/>
+                <xs:attribute name="set" type="xs:string"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="verifyActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithSelectorLambdaAndTimeOut">
+                <xs:sequence>
+                    <xs:element name="script" type="xs:string" minOccurs="0"/>
+                </xs:sequence>
+                <xs:attribute name="value" type="xs:string"/>
+                <xs:attribute name="tolerance" type="xs:double" default="0.1"/>
+                <xs:attribute name="kind" type="KindOfVerifyAction" default="ELEMENT"/>
+                <xs:attribute name="elementStatus" type="xs:string" default="CONTENT|ENABLE|DISPLAYED"/>
+                <xs:attribute name="negative" type="xs:boolean" default="false"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="messageActionType">
+        <xs:complexContent>
+            <xs:extension base="baseActionTypeWithTimeout">
+                <xs:attribute name="msg" type="xs:string" use="required"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="configurationType">
+        <xs:sequence>
+            <xs:element name="properties" type="xs:string" minOccurs="0"/>
+            <xs:element name="dialogs" type="xs:boolean" minOccurs="0"/>
+            <xs:element name="set" type="setType" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="infoType">
+        <xs:sequence>
+            <xs:element name="execution" type="xs:string"/>
+            <xs:element name="case" type="xs:string"/>
+            <xs:element name="testApproach " type="xs:string"/>
+            <xs:element name="priority" type="xs:string"/>
+            <xs:element name="tester" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:element name="qarobot">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="info" type="infoType" minOccurs="0"/>
+                <xs:element name="configuration" type="configurationType"/>
+                <xs:choice maxOccurs="unbounded">
+                    <xs:element name="open" type="openActionType" maxOccurs="unbounded"/>
+                    <xs:element name="include" type="includeActionType" maxOccurs="unbounded"/>
+                    <xs:element name="cycle" type="cycleActionType" maxOccurs="unbounded"/>
+                    <xs:element name="delay" type="delayActionType" maxOccurs="unbounded"/>
+                    <xs:element name="stop" type="stopActionType" maxOccurs="unbounded"/>
+                    <xs:element name="rest" type="restActionType" maxOccurs="unbounded"/>
+                    <xs:element name="switchtab" type="switchtabActionType" maxOccurs="unbounded"/>
+                    <xs:element name="script" type="scriptActionType" maxOccurs="unbounded"/>
+                    <xs:element name="click" type="clickActionType" maxOccurs="unbounded"/>
+                    <xs:element name="choose" type="chooseActionType" maxOccurs="unbounded"/>
+                    <xs:element name="read" type="readActionType" maxOccurs="unbounded"/>
+                    <xs:element name="write" type="writeActionType" maxOccurs="unbounded"/>
+                    <xs:element name="verify" type="verifyActionType" maxOccurs="unbounded"/>
+                    <xs:element name="message" type="messageActionType" maxOccurs="unbounded"/>
+                </xs:choice>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>

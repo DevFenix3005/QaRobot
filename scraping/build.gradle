@@ -1,0 +1,35 @@
+plugins {
+    id 'com.rebirth.qarobot.java-library-conventions'
+}
+
+dependencies {
+    implementation project(":commons")
+    // https://mvnrepository.com/artifact/org.seleniumhq.selenium/selenium-java
+    implementation "org.seleniumhq.selenium:selenium-java:$selenium_version"
+    // https://mvnrepository.com/artifact/com.thedeanda/lorem
+    implementation "com.thedeanda:lorem:$lorem_version"
+    // https://mvnrepository.com/artifact/com.mashape.unirest/unirest-java
+    implementation "com.konghq:unirest-java:$unirest_version"
+    // https://mvnrepository.com/artifact/com.github.freva/ascii-table
+    implementation "com.github.freva:ascii-table:$asciitable_version"
+    // https://mvnrepository.com/artifact/org.freemarker/freemarker
+    implementation "org.freemarker:freemarker:$freemarker_version"
+    // https://mvnrepository.com/artifact/com.jayway.jsonpath/json-path
+    implementation "com.jayway.jsonpath:json-path:$jsonpath_version"
+    // https://mvnrepository.com/artifact/org.graalvm.js/js
+    implementation 'org.graalvm.js:js:22.3.0'
+    // https://mvnrepository.com/artifact/org.graalvm.js/js-scriptengine
+    implementation 'org.graalvm.js:js-scriptengine:22.3.0'
+
+
+    testImplementation project(":commons")
+    // https://mvnrepository.com/artifact/org.graalvm.js/js
+    testImplementation 'org.graalvm.js:js:22.3.0'
+    // https://mvnrepository.com/artifact/org.graalvm.js/js-scriptengine
+    testImplementation 'org.graalvm.js:js-scriptengine:22.3.0'
+
+}
+
+test {
+    useJUnitPlatform()
+}
