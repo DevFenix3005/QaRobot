@@ -6,6 +6,7 @@ import com.google.common.base.StandardSystemProperty;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 import com.rebirth.qarobot.scraping.models.qabot.actions.Action;
+import com.rebirth.qarobot.scraping.utils.ActionRunner;
 import com.rebirth.qarobot.scraping.utils.AssetsFilterFile;
 import com.rebirth.qarobot.scraping.utils.predicates.OkPredicate;
 import com.rebirth.qarobot.scraping.utils.predicates.SkipPredicate;
@@ -46,6 +47,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 @ChildComponent()
 @Data
@@ -56,9 +58,7 @@ public final class QaRobotXmlImpl implements QaRobotXml {
     private final SeleniumHelper seleniumHelper;
     private final Map<Class<? extends BaseActionType>, Action<? extends BaseActionType>> actionMap;
     private final Template template;
-
     private QarobotWrapper mainQaRobot;
-
 
     @Inject
     public QaRobotXmlImpl(
@@ -178,19 +178,15 @@ public final class QaRobotXmlImpl implements QaRobotXml {
     private void startInvokeActions() throws ExecutionException {
 
         List<BaseActionType> actions = mainQaRobot.getActions();
-        List<Callable<Object>> runnableList = Lists.newArrayList();
-
+        List<Runnable> runnableList = Lists.newArrayList();
         for (BaseActionType action : actions) {
-            Callable<Object> call = () -> {
-                runLifeCycle(action).run();
-                return 3;
-            };
-            runnableList.add(call);
+            ActionRunner actionRunner = new ActionRunner(action, actionMap);
+            runnableList.add(actionRunner);
         }
 
         try {
-            for (Callable<Object> objectCallable : runnableList) {
-                Future<Object> future = this.seleniumHelper.submit2Executor(objectCallable);
+            for (Runnable runnable : runnableList) {
+                Future<?> future = this.seleniumHelper.submit2Executor(runnable);
                 try {
                     future.get();
                 } catch (InterruptedException e) {
@@ -213,16 +209,6 @@ public final class QaRobotXmlImpl implements QaRobotXml {
     public void resumenExecution() {
         seleniumHelper.resumenActionExecution();
     }
-
-
-    @SuppressWarnings(value = "unchecked")
-    private <T extends BaseActionType> Action<T> runLifeCycle(T baseActionDto) throws StopActionException {
-        Class<T> klassActionDto = (Class<T>) baseActionDto.getClass();
-        Action<T> fetchedAction = (Action<T>) actionMap.get(klassActionDto);
-        fetchedAction.setAction(baseActionDto);
-        return fetchedAction;
-    }
-
 
     private File generateDashbord(Writer out, Throwable throwable) throws TemplateException, IOException {
         File file = new File(mainQaRobot.getDashboardExitFile(), "index.html");

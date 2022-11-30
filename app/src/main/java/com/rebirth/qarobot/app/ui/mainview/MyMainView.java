@@ -169,7 +169,9 @@ public class MyMainView extends JPanel {
         ActionTableModel actionTableModel = (ActionTableModel) this.table1.getModel();
         List<BaseActionType> actionDtos = actionTableModel.getActionDtoList();
         int index = actionDtos.indexOf(action);
-        actionTableModel.setRowColour(index, color);
+        if (index != -1) {
+            actionTableModel.setRowColour(index, color);
+        }
     }
 
 

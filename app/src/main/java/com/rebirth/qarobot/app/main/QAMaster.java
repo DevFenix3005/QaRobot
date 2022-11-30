@@ -39,7 +39,6 @@ public class QAMaster implements Runnable {
     private final Provider<ScrappingComponent.Factory> scrappingComponentProvider;
     private final Provider<RecordComponent.Factory> recordComponentProvider;
     private final QaXmlReadService qaXmlReadService;
-
     private QarobotWrapper qarobot;
     private Lazy<MainViewModel> mainViewModelLazy;
 

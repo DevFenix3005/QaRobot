@@ -3,7 +3,7 @@ package com.rebirth.qarobot.scraping.models.qabot.actions;
 import org.apache.logging.log4j.Logger;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.BaseActionType;
 
-public abstract class ActionLifeCycle<T extends BaseActionType> implements Runnable {
+public abstract class ActionLifeCycle<T extends BaseActionType> {
 
     private static final Logger log = org.apache.logging.log4j.LogManager.getLogger(ActionLifeCycle.class);
 
@@ -19,8 +19,9 @@ public abstract class ActionLifeCycle<T extends BaseActionType> implements Runna
 
     public void execute() {
         throw new UnsupportedOperationException("ActionLifeCycle::execute no implemented yet");
-
     }
+
+    public abstract void run();
 
     public void afterExecute() {
         throw new UnsupportedOperationException("ActionLifeCycle::afterExecute no implemented yet");

@@ -16,7 +16,7 @@ import java.io.FileNotFoundException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 
-@Module
+@Module()
 public abstract class ScriptModule {
 
     private static final Logger log = LogManager.getLogger(ScriptModule.class);

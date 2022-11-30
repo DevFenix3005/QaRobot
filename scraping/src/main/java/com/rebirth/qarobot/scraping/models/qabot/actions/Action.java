@@ -68,4 +68,8 @@ public abstract class Action<T extends BaseActionType> extends ActionLifeCycle<T
         this.element = null;
         this.actionDto = null;
     }
+
+    public void setActionasd(BaseActionType baseActionDto) {
+
+    }
 }

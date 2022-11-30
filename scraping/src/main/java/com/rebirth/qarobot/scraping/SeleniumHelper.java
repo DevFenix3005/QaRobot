@@ -115,7 +115,7 @@ public interface SeleniumHelper {
 
     BaseActionType getCurrentAction();
 
-    Future<Object> submit2Executor(Callable<Object> callable);
+    Future<?> submit2Executor(Runnable callable);
 
     void resumenActionExecution();
 

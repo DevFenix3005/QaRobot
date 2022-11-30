@@ -20,7 +20,6 @@ public class QarobotWrapper {
     private Qarobot qarobot;
     private boolean validXml;
     private List<String> errores;
-
     private File xmlFile;
     private File dashboardExitFile;
     private File xmlTempFile;

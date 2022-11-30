@@ -1,24 +1,12 @@
-package com.rebirth.qarobot.scraping.di.modules;
+package com.rebirth.qarobot.scraping.di.modules.action;
 
+import com.rebirth.qarobot.commons.models.dtos.qarobot.*;
 import com.rebirth.qarobot.scraping.di.annotations.ActionKey;
 import com.rebirth.qarobot.scraping.models.qabot.actions.Action;
 import com.rebirth.qarobot.scraping.models.qabot.actions.impl.*;
 import dagger.Binds;
 import dagger.Module;
 import dagger.multibindings.IntoMap;
-import com.rebirth.qarobot.commons.models.dtos.qarobot.BaseActionType;
-import com.rebirth.qarobot.commons.models.dtos.qarobot.ChooseActionType;
-import com.rebirth.qarobot.commons.models.dtos.qarobot.ClickActionType;
-import com.rebirth.qarobot.commons.models.dtos.qarobot.DelayActionType;
-import com.rebirth.qarobot.commons.models.dtos.qarobot.MessageActionType;
-import com.rebirth.qarobot.commons.models.dtos.qarobot.OpenActionType;
-import com.rebirth.qarobot.commons.models.dtos.qarobot.ReadActionType;
-import com.rebirth.qarobot.commons.models.dtos.qarobot.RestActionType;
-import com.rebirth.qarobot.commons.models.dtos.qarobot.ScriptActionType;
-import com.rebirth.qarobot.commons.models.dtos.qarobot.StopActionType;
-import com.rebirth.qarobot.commons.models.dtos.qarobot.SwitchtabActionType;
-import com.rebirth.qarobot.commons.models.dtos.qarobot.VerifyActionType;
-import com.rebirth.qarobot.commons.models.dtos.qarobot.WriteActionType;
 
 @Module
 public abstract class ActionModule {
@@ -85,5 +73,11 @@ public abstract class ActionModule {
     @IntoMap
     @ActionKey(MessageActionType.class)
     public abstract Action<? extends BaseActionType> messageActionBind(MessageAction messageAction);
+
+    @Binds
+    @IntoMap
+    @ActionKey(IterationActionType.class)
+    public abstract Action<? extends BaseActionType> iterationActionBind(IterationAction iterationAction);
+
 
 }

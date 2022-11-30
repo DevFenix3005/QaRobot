@@ -59,6 +59,7 @@
         <xs:attribute name="desc" type="xs:string" use="required"/>
         <xs:attribute name="order" type="xs:unsignedInt" use="required"/>
         <xs:attribute name="skip" type="xs:boolean" default="false"/>
+        <xs:attribute name="iterationChild" type="xs:boolean" default="false"/>
     </xs:complexType>
     <xs:complexType name="baseActionTypeWithTimeout">
         <xs:complexContent>
@@ -100,13 +101,12 @@
             </xs:extension>
         </xs:complexContent>
     </xs:complexType>
-    <xs:complexType name="cycleActionType">
+    <xs:complexType name="iterationActionType">
         <xs:complexContent>
             <xs:extension base="baseActionTypeWithTimeout">
                 <xs:sequence>
                     <xs:choice maxOccurs="unbounded">
                         <xs:element name="open" type="openActionType" maxOccurs="unbounded"/>
-                        <xs:element name="include" type="includeActionType" maxOccurs="unbounded"/>
                         <xs:element name="delay" type="delayActionType" maxOccurs="unbounded"/>
                         <xs:element name="stop" type="stopActionType" maxOccurs="unbounded"/>
                         <xs:element name="rest" type="restActionType" maxOccurs="unbounded"/>
@@ -119,7 +119,13 @@
                         <xs:element name="verify" type="verifyActionType" maxOccurs="unbounded"/>
                     </xs:choice>
                 </xs:sequence>
-                <xs:attribute name="times" type="xs:unsignedInt" use="required"/>
+                <xs:attribute name="times" type="xs:string" use="required"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:complexType name="cycleActionType">
+        <xs:complexContent>
+            <xs:extension base="iterationActionType">
                 <xs:attribute name="include" type="xs:string"/>
             </xs:extension>
         </xs:complexContent>
@@ -260,6 +266,7 @@
                     <xs:element name="write" type="writeActionType" maxOccurs="unbounded"/>
                     <xs:element name="verify" type="verifyActionType" maxOccurs="unbounded"/>
                     <xs:element name="message" type="messageActionType" maxOccurs="unbounded"/>
+                    <xs:element name="iteration" type="iterationActionType" maxOccurs="unbounded"/>
                 </xs:choice>
             </xs:sequence>
         </xs:complexType>

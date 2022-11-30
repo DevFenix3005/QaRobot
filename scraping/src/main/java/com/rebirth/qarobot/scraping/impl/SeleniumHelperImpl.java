@@ -1,5 +1,14 @@
 package com.rebirth.qarobot.scraping.impl;
 
+import com.rebirth.qarobot.commons.di.annotations.scopes.ChildComponent;
+import com.rebirth.qarobot.commons.di.enums.PatternEnum;
+import com.rebirth.qarobot.commons.exceptions.NoVar2InterpolationFoundInContextEx;
+import com.rebirth.qarobot.commons.exceptions.NotFoundWebElement;
+import com.rebirth.qarobot.commons.models.dtos.Configuracion;
+import com.rebirth.qarobot.commons.models.dtos.QaRobotContext;
+import com.rebirth.qarobot.commons.models.dtos.Verificador;
+import com.rebirth.qarobot.commons.models.dtos.dialogs.MyOwnIcos;
+import com.rebirth.qarobot.commons.models.dtos.dialogs.TitleIconAndMsgPojo;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.BaseActionType;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.ChooseActionType;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.ItemType;
@@ -7,6 +16,14 @@ import com.rebirth.qarobot.commons.models.dtos.qarobot.KindOfBy;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.ListType;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.MessageActionType;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.SelectorType;
+import com.rebirth.qarobot.commons.models.dtos.tables.ActionColorAndExIfExits;
+import com.rebirth.qarobot.commons.utils.Constantes;
+import com.rebirth.qarobot.commons.utils.PuaseExecutionFromStopAction;
+import com.rebirth.qarobot.commons.utils.SendInfo2View;
+import com.rebirth.qarobot.commons.utils.SendQaContext2View;
+import com.rebirth.qarobot.commons.utils.ShowInDialog;
+import com.rebirth.qarobot.scraping.SeleniumHelper;
+import com.rebirth.qarobot.scraping.enums.MyLogicSimbols;
 import com.rebirth.qarobot.scraping.models.qabot.Value;
 import com.rebirth.qarobot.scraping.utils.InterpolationResult;
 import lombok.Data;
@@ -24,23 +41,6 @@ import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
-import com.rebirth.qarobot.commons.di.annotations.scopes.ChildComponent;
-import com.rebirth.qarobot.commons.exceptions.NoVar2InterpolationFoundInContextEx;
-import com.rebirth.qarobot.commons.exceptions.NotFoundWebElement;
-import com.rebirth.qarobot.commons.models.dtos.Configuracion;
-import com.rebirth.qarobot.commons.models.dtos.Verificador;
-import com.rebirth.qarobot.commons.models.dtos.dialogs.MyOwnIcos;
-import com.rebirth.qarobot.commons.models.dtos.dialogs.TitleIconAndMsgPojo;
-import com.rebirth.qarobot.commons.models.dtos.tables.ActionColorAndExIfExits;
-import com.rebirth.qarobot.commons.utils.Constantes;
-import com.rebirth.qarobot.commons.utils.PuaseExecutionFromStopAction;
-import com.rebirth.qarobot.commons.utils.SendInfo2View;
-import com.rebirth.qarobot.commons.utils.SendQaContext2View;
-import com.rebirth.qarobot.commons.utils.ShowInDialog;
-import com.rebirth.qarobot.scraping.SeleniumHelper;
-import com.rebirth.qarobot.scraping.enums.MyLogicSimbols;
-import com.rebirth.qarobot.commons.di.enums.PatternEnum;
-import com.rebirth.qarobot.commons.models.dtos.QaRobotContext;
 
 import javax.inject.Inject;
 import java.awt.Color;
@@ -56,7 +56,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
-import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -209,19 +208,11 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
     private By processBy(SelectorType selector) {
         KindOfBy by = selector.getBy();
         String path = selector.getValue();
-        By elementReference;
-        switch (by) {
-            case CSS:
-                elementReference = By.cssSelector(path);
-                break;
-            case ID:
-                elementReference = By.id(path);
-                break;
-            case XPATH:
-            default:
-                elementReference = By.xpath(path);
-        }
-        return elementReference;
+        return switch (by) {
+            case CSS -> By.cssSelector(path);
+            case ID -> By.id(path);
+            default -> By.xpath(path);
+        };
     }
 
 
@@ -256,15 +247,7 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
         String value = chooseActionType.getValue();
         ListType listaOpciones = chooseActionType.getList();
 
-        String realValue;
-        if (listaOpciones != null && value.equals(Constantes.RANDOM_LIST)) {
-            List<String> chooseList = listaOpciones.getItem().stream().map(ItemType::getValue).toList();
-            int randomValue = random.nextInt(chooseList.size());
-            realValue = chooseList.get(randomValue);
-        } else {
-            InterpolationResult interpolation = this.getInterpolationOfValueIfExistsOrGetRawValue(value);
-            realValue = interpolation.getValue();
-        }
+        String realValue = getRealValue(value, listaOpciones);
 
         NotFoundWebElement notFoundWebElement = new NotFoundWebElement(id, "No se encontro la opcion dentro del select la opcion " + realValue, selector);
 
@@ -277,29 +260,46 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
                 throw notFoundWebElement;
             }
         } else {
-            webElement.click();
-            webElement.sendKeys(Keys.ARROW_DOWN);
-            webElement.sendKeys(Keys.ARROW_DOWN);
+            vadiinProcessToselectValue(webElement, realValue, notFoundWebElement);
+        }
+    }
 
-            for (int i = 0; i < 30; i++) {
-                webElement.sendKeys(Keys.ARROW_UP);
-            }
+    private void vadiinProcessToselectValue(WebElement webElement, String realValue, NotFoundWebElement notFoundWebElement) {
+        webElement.click();
+        webElement.sendKeys(Keys.ARROW_DOWN);
+        webElement.sendKeys(Keys.ARROW_DOWN);
 
-            int j = 0;
-            while (true) {
-                String currentValue = webElement.getAttribute(Constantes.VALUE);
-                if (currentValue.equals(realValue)) {
-                    webElement.sendKeys(Keys.ENTER);
-                    break;
-                } else {
-                    webElement.sendKeys(Keys.ARROW_DOWN);
-                    delay(222);
-                    if ((j++) > 100) {
-                        throw notFoundWebElement;
-                    }
+        for (int i = 0; i < 30; i++) {
+            webElement.sendKeys(Keys.ARROW_UP);
+        }
+
+        int j = 0;
+        while (true) {
+            String currentValue = webElement.getAttribute(Constantes.VALUE);
+            if (currentValue.equals(realValue)) {
+                webElement.sendKeys(Keys.ENTER);
+                break;
+            } else {
+                webElement.sendKeys(Keys.ARROW_DOWN);
+                delay(222);
+                if ((j++) > 100) {
+                    throw notFoundWebElement;
                 }
             }
         }
+    }
+
+    private String getRealValue(String value, ListType listaOpciones) {
+        String realValue;
+        if (listaOpciones != null && value.equals(Constantes.RANDOM_LIST)) {
+            List<String> chooseList = listaOpciones.getItem().stream().map(ItemType::getValue).toList();
+            int randomValue = random.nextInt(chooseList.size());
+            realValue = chooseList.get(randomValue);
+        } else {
+            InterpolationResult interpolation = this.getInterpolationOfValueIfExistsOrGetRawValue(value);
+            realValue = interpolation.getValue();
+        }
+        return realValue;
     }
 
     @Override
@@ -462,7 +462,7 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
 
     @Override
     public void actionLog(BaseActionType action) {
-        this.qaRobotContext.getCurrentAction().set(action);
+        boolean iterationChild = action.isIterationChild();
         String id = action.getId();
         String desc = action.getDesc();
         Long order = action.getOrder();
@@ -470,14 +470,19 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
         boolean skip = action.isSkip();
         String template = "Accion[{}] ID:{} Orden:{} Descripcion:{}";
 
-        if (skip) {
-            template = "OMITIDA!!!![ " + template + " ]";
+        if (iterationChild) {
+            template = "Corriendo en iteracion" + "[" + template + "]";
+        } else {
+            this.qaRobotContext.getCurrentAction().set(action);
+            if (skip) {
+                template = "OMITIDA!!!![ " + template + " ]";
+            }
+            this.sendAction2View(action, Color.CYAN, null);
+            if (!(action instanceof MessageActionType) && !skip) {
+                sendMessage2Dialog(action);
+            }
         }
         log.info(template, type, id, order, desc);
-        this.sendAction2View(action, Color.CYAN, null);
-        if (!(action instanceof MessageActionType) && !skip) {
-            sendMessage2Dialog(action);
-        }
     }
 
     private void sendMessage2Dialog(BaseActionType baseActionDto) {
@@ -523,8 +528,8 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
     }
 
     @Override
-    public Future<Object> submit2Executor(Callable<Object> callable) {
-        return this.qaRobotContext.submitCallableInExecutor(callable);
+    public Future<?> submit2Executor(Runnable runnable) {
+        return this.qaRobotContext.submitCallableInExecutor(runnable);
     }
 
     @Override

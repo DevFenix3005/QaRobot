@@ -2,12 +2,12 @@ package com.rebirth.qarobot.commons.models.dtos;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.rebirth.qarobot.commons.utils.PausableExecutor;
-import lombok.Data;
-import lombok.extern.log4j.Log4j2;
 import com.rebirth.qarobot.commons.di.annotations.scopes.ChildComponent;
 import com.rebirth.qarobot.commons.di.enums.PatternEnum;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.BaseActionType;
+import com.rebirth.qarobot.commons.utils.PausableExecutor;
+import lombok.Data;
+import lombok.extern.log4j.Log4j2;
 
 import javax.inject.Inject;
 import java.text.DecimalFormat;
@@ -15,7 +15,6 @@ import java.text.ParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
@@ -85,8 +84,8 @@ public class QaRobotContext {
         else return verificacionesSinSkips.stream().allMatch(Verificador::isOk);
     }
 
-    public Future<Object> submitCallableInExecutor(Callable<Object> callable) {
-        return pausableExecutor.submit(callable);
+    public Future<?> submitCallableInExecutor(Runnable runnable) {
+        return pausableExecutor.submit(runnable);
     }
 
     public void pauseExecutor() {
