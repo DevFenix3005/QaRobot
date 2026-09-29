@@ -53,6 +53,15 @@ class PublishDistributionTest(unittest.TestCase):
     def mutations(self):
         return [command for command in self.commands if command[1] in ("create", "upload")]
 
+    def add_windows_installer(self):
+        self.installer = self.assets / "QaRobot-2.2.0-op.1-windows-x64.exe"
+        self.installer.write_bytes(b"tested native Windows installer")
+        self.windows_manifest = self.assets / "SHA256SUMS-windows.txt"
+        self.windows_manifest.write_text(
+            f"{publisher.sha256(self.installer)}  {self.installer.name}\n",
+            encoding="utf-8", newline="\n",
+        )
+
     def test_creates_new_prerelease_with_verified_tag(self):
         self.lookup.return_value = None
         self.publish()
@@ -156,6 +165,91 @@ class PublishDistributionTest(unittest.TestCase):
         with self.assertRaisesRegex(publisher.PublicationError, "HTTP 403"):
             self.publish()
         self.assertEqual(self.commands, [])
+
+    def test_new_release_includes_zip_and_verified_windows_installer(self):
+        self.add_windows_installer()
+        self.lookup.return_value = None
+        self.publish()
+        self.assertEqual(self.commands[0][:7], [
+            "release", "create", self.tag, str(self.archive), str(self.manifest),
+            str(self.installer), str(self.windows_manifest),
+        ])
+        self.assertIn("--verify-tag", self.commands[0])
+
+    def test_existing_zip_release_receives_only_windows_pair(self):
+        self.add_windows_installer()
+        self.release(self.archive, self.manifest)
+        self.publish()
+        self.assertEqual(self.mutations(), [[
+            "release", "upload", self.tag, str(self.installer), str(self.windows_manifest),
+            "--repo", self.repository,
+        ]])
+
+    def test_complete_windows_release_is_idempotent(self):
+        self.add_windows_installer()
+        self.release(self.archive, self.manifest, self.installer, self.windows_manifest)
+        self.publish()
+        self.assertEqual(len(self.commands), 4)
+        self.assertEqual(self.mutations(), [])
+
+    def test_partial_windows_release_receives_only_missing_manifest(self):
+        self.add_windows_installer()
+        self.release(self.archive, self.manifest, self.installer)
+        self.publish()
+        self.assertEqual(self.mutations(), [[
+            "release", "upload", self.tag, str(self.windows_manifest), "--repo", self.repository,
+        ]])
+
+    def test_windows_conflict_prevents_uploading_any_other_asset(self):
+        self.add_windows_installer()
+        self.release(self.installer)
+        self.remote_content[self.installer.name] = b"different native installer"
+        with self.assertRaisesRegex(publisher.PublicationError, "different content"):
+            self.publish()
+        self.assertEqual(self.mutations(), [])
+
+    def test_missing_windows_manifest_fails_before_api_lookup(self):
+        self.add_windows_installer()
+        self.windows_manifest.unlink()
+        with self.assertRaisesRegex(publisher.PublicationError, "together"):
+            self.publish()
+        self.lookup.assert_not_called()
+        self.assertEqual(self.commands, [])
+
+    def test_missing_windows_installer_fails_before_api_lookup(self):
+        self.add_windows_installer()
+        self.installer.unlink()
+        with self.assertRaisesRegex(publisher.PublicationError, "together"):
+            self.publish()
+        self.lookup.assert_not_called()
+        self.assertEqual(self.commands, [])
+
+    def test_windows_checksum_mismatch_fails_before_api_lookup(self):
+        self.add_windows_installer()
+        self.installer.write_bytes(b"changed after checksum generation")
+        with self.assertRaisesRegex(publisher.PublicationError, "SHA-256 verification failed"):
+            self.publish()
+        self.lookup.assert_not_called()
+        self.assertEqual(self.commands, [])
+
+    def test_windows_manifest_cannot_reference_another_file(self):
+        self.add_windows_installer()
+        self.windows_manifest.write_text("0" * 64 + "  ../another.exe\n", encoding="utf-8")
+        with self.assertRaisesRegex(publisher.PublicationError, "exactly one checksum"):
+            self.publish()
+        self.lookup.assert_not_called()
+
+    def test_unexpected_installer_version_fails_before_api_lookup(self):
+        (self.assets / "QaRobot-2.1.0-windows-x64.exe").write_bytes(b"wrong version")
+        with self.assertRaisesRegex(publisher.PublicationError, "Unexpected release assets"):
+            self.publish()
+        self.lookup.assert_not_called()
+
+    def test_extra_archive_is_rejected_before_api_lookup(self):
+        (self.assets / "QaRobot-2.1.0.zip").write_bytes(b"wrong version")
+        with self.assertRaisesRegex(publisher.PublicationError, "Unexpected release assets"):
+            self.publish()
+        self.lookup.assert_not_called()
 
 
 class FetchReleaseTest(unittest.TestCase):

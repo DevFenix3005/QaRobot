@@ -74,7 +74,7 @@ jobs:
     name: Test and package (${{ matrix.os }})
     needs: prepare
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -107,6 +107,31 @@ jobs:
         with:
           cache-provider: basic
 
+      # A manual retry may target an older tag that predates native packaging.
+      - name: Detect Windows installer support in the selected sources
+        id: native
+        if: runner.os == 'Windows'
+        run: |
+          $supported = Test-Path -LiteralPath app/packaging/windows-cli.properties -PathType Leaf
+          "supported=$($supported.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Locate the runner's WiX Toolset
+        if: runner.os == 'Windows' && steps.native.outputs.supported == 'true'
+        run: |
+          # GitHub's Windows image includes WiX 3 and exposes its location as WIX.
+          if ($env:WIX) {
+            $wixBin = Join-Path $env:WIX 'bin'
+            if (Test-Path -LiteralPath $wixBin -PathType Container) {
+              $env:PATH = "$wixBin;$env:PATH"
+              $wixBin | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+            }
+          }
+          foreach ($tool in @('candle.exe', 'light.exe')) {
+            if (-not (Get-Command $tool -CommandType Application -ErrorAction SilentlyContinue)) {
+              throw "The Windows runner must provide WiX 3 with $tool on PATH."
+            }
+          }
+
       - name: Build, test and package
         env:
           RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
@@ -131,6 +156,57 @@ jobs:
             -DistributionPath ./app/build/install/QaRobot `
             -OutputPath ./build/ci-smoke
 
+      - name: Build the native Windows application image
+        if: runner.os == 'Windows' && steps.native.outputs.supported == 'true'
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+        run: |
+          $gradleArguments = @(':app:jpackageImage', '--no-daemon', '--stacktrace', '--console=plain')
+          if ($env:RELEASE_TAG) {
+            $gradleArguments += '-PreleaseVersion=' + $env:RELEASE_TAG.Substring(1)
+          }
+          & .\gradlew.bat @gradleArguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Exercise the native launcher using its bundled Java
+        if: runner.os == 'Windows' && steps.native.outputs.supported == 'true'
+        run: |
+          & ./.github/scripts/Test-NativeDistribution.ps1 `
+            -ApplicationPath ./app/build/jpackage/image/QaRobot `
+            -OutputPath ./build/ci-native-smoke
+
+      - name: Package the tested Windows image as an installer
+        if: runner.os == 'Windows' && steps.native.outputs.supported == 'true'
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+        run: |
+          $gradleArguments = @(':app:jpackageInstaller', '--no-daemon', '--stacktrace', '--console=plain')
+          if ($env:RELEASE_TAG) {
+            $gradleArguments += '-PreleaseVersion=' + $env:RELEASE_TAG.Substring(1)
+          }
+          & .\gradlew.bat @gradleArguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Calculate the Windows installer checksum
+        if: runner.os == 'Windows' && steps.native.outputs.supported == 'true'
+        run: |
+          $installers = @(Get-ChildItem -LiteralPath app/build/distributions -Filter 'QaRobot-*-windows-x64.exe' -File)
+          if ($installers.Count -ne 1) { throw 'Expected exactly one QaRobot Windows installer.' }
+          $hash = (Get-FileHash -LiteralPath $installers[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installers[0].Name)" | Set-Content -LiteralPath app/build/distributions/SHA256SUMS-windows.txt -Encoding utf8NoBOM
+
+      - name: Save the downloadable Windows installer
+        if: runner.os == 'Windows' && steps.native.outputs.supported == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: QaRobot-windows-installer
+          path: |
+            app/build/distributions/QaRobot-*-windows-x64.exe
+            app/build/distributions/SHA256SUMS-windows.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
       - name: Collect test reports and failure evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -140,6 +216,7 @@ jobs:
             */build/reports/tests/
             */build/test-results/
             build/ci-smoke/
+            build/ci-native-smoke/
           if-no-files-found: warn
           retention-days: 14
 
@@ -179,10 +256,11 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Download the tested distribution
+      - name: Download the tested distributions
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: QaRobot-distribution
+          pattern: QaRobot-*
+          merge-multiple: true
           path: release-assets
 
       - name: Verify and publish the release

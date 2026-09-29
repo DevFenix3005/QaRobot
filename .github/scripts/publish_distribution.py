@@ -36,6 +36,22 @@ def sha256(path):
     return digest.hexdigest()
 
 
+def validate_checksum(archive, manifest):
+    try:
+        manifest_text = manifest.read_text(encoding="utf-8")
+    except UnicodeError as error:
+        raise PublicationError(f"{manifest.name} must contain UTF-8 text.") from error
+    match = re.fullmatch(
+        r"([0-9a-fA-F]{64}) [ *]" + re.escape(archive.name) + r"\n?", manifest_text
+    )
+    if match is None:
+        raise PublicationError(f"{manifest.name} must contain exactly one checksum for {archive.name}.")
+    archive_hash = sha256(archive)
+    if archive_hash != match.group(1).lower():
+        raise PublicationError(f"SHA-256 verification failed for {archive.name}.")
+    return [(archive, archive_hash), (manifest, sha256(manifest))]
+
+
 def validate_assets(tag, directory):
     if not TAG_PATTERN.fullmatch(tag):
         raise PublicationError("Release tags must have the form v2.1.0 or v2.1.0-rc.1.")
@@ -44,21 +60,23 @@ def validate_assets(tag, directory):
     manifest = directory / "SHA256SUMS.txt"
     if not directory.is_dir() or not archive.is_file() or not manifest.is_file():
         raise PublicationError(f"Expected {archive.name} and SHA256SUMS.txt in {directory}.")
-    if len(list(directory.glob("*.zip"))) != 1:
-        raise PublicationError("Expected exactly one distribution ZIP in the assets directory.")
-    try:
-        manifest_text = manifest.read_text(encoding="utf-8")
-    except UnicodeError as error:
-        raise PublicationError("SHA256SUMS.txt must contain UTF-8 text.") from error
-    match = re.fullmatch(
-        r"([0-9a-fA-F]{64}) [ *]" + re.escape(archive.name) + r"\n?", manifest_text
-    )
-    if match is None:
-        raise PublicationError(f"SHA256SUMS.txt must contain exactly one checksum for {archive.name}.")
-    archive_hash = sha256(archive)
-    if archive_hash != match.group(1).lower():
-        raise PublicationError(f"SHA-256 verification failed for {archive.name}.")
-    return [(archive, archive_hash), (manifest, sha256(manifest))]
+    assets = validate_checksum(archive, manifest)
+    expected_names = {archive.name, manifest.name}
+
+    # Old tags contain only a ZIP. New tags also provide an independently hashed
+    # installer, keeping the original ZIP manifest unchanged for release retries.
+    installer = directory / f"QaRobot-{tag[1:]}-windows-x64.exe"
+    windows_manifest = directory / "SHA256SUMS-windows.txt"
+    if installer.exists() or windows_manifest.exists():
+        if not installer.is_file() or not windows_manifest.is_file():
+            raise PublicationError(f"Expected {installer.name} and {windows_manifest.name} together.")
+        assets.extend(validate_checksum(installer, windows_manifest))
+        expected_names.update((installer.name, windows_manifest.name))
+
+    unexpected_names = {path.name for path in directory.iterdir()} - expected_names
+    if unexpected_names:
+        raise PublicationError(f"Unexpected release assets: {', '.join(sorted(unexpected_names))}.")
+    return assets
 
 
 def fetch_release(repository, tag):

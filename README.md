@@ -5,7 +5,7 @@ QaRobot es una herramienta de QA con interfaz Java/Swing y ejecución desde term
 ## Requisitos
 
 - Windows 10/11 para la interfaz; el pipeline también comprueba la terminal en Linux.
-- JDK 25 recomendado para compilar y ejecutar la distribución. El código del proyecto se compila a bytecode Java 17.
+- El instalador de Windows x64 incluye Java. Para compilar el proyecto o usar el ZIP portable, se recomienda JDK 25. El código del proyecto se compila a bytecode Java 17.
 - Un navegador compatible: Chrome, Edge o Firefox.
 - Node.js 20 o superior para reconstruir el dashboard o empaquetar una distribución; el pipeline usa Node.js 24. No se necesita Node para usar una distribución ya descargada.
 
@@ -158,18 +158,55 @@ Para comprobar una instalación completa con PowerShell 7 y Chrome:
 
 El script ejecuta un escenario correcto y la carpeta completa de ejemplos. Comprueba los códigos de salida, HTML, JUnit, capturas y que la suite continúe después del fallo deliberado.
 
+## Instalador de Windows
+
+La distribución `QaRobot-VERSION-windows-x64.exe` instala QaRobot para el usuario actual, incluye Java y agrega un acceso en el menú Inicio. El asistente permite elegir la carpeta de instalación; también incluye acceso directo en el escritorio y desinstalación desde las aplicaciones instaladas de Windows. El usuario solo necesita un navegador compatible.
+
+La instalación contiene dos ejecutables:
+
+- **QaRobot.exe** abre la interfaz gráfica.
+- **QaRobot-cli.exe** ejecuta los mismos comandos de terminal con el Java incluido.
+
+Desde la carpeta de instalación:
+
+```powershell
+.\QaRobot-cli.exe run .\app\examples\offline-smoke.xml
+.\QaRobot-cli.exe --help
+```
+
+Los ejemplos y la documentación están en `app/examples/` y `app/docs/`. El espacio de trabajo predeterminado sigue siendo `%USERPROFILE%\QaRobotWorkplace`. Los logs se guardan en `%USERPROFILE%\QaRobotWorkplace\logs`, de modo que iniciar desde el menú Inicio no requiere escribir en la carpeta de instalación.
+
+### Construir el instalador
+
+Se construye en Windows x64 con JDK 25, Node.js y WiX Toolset 3.14.1 (`candle.exe` y `light.exe` disponibles en `PATH`). WiX y Node solo se necesitan al construir el paquete.
+
+```powershell
+.\gradlew.bat :app:jpackageInstaller '-PreleaseVersion=2.3.0'
+```
+
+El resultado queda en `app/build/distributions/QaRobot-2.3.0-windows-x64.exe`. Para probar los ejecutables y el Java incluido antes de instalar:
+
+```powershell
+.\gradlew.bat :app:jpackageImage '-PreleaseVersion=2.3.0'
+.\.github\scripts\Test-NativeDistribution.ps1 -ApplicationPath app/build/jpackage/image/QaRobot -OutputPath build/native-smoke
+```
+
+La imagen ejecutable queda en `app/build/jpackage/image/QaRobot/`. El smoke test comprueba la ayuda, un escenario con Chrome y la apertura y el cierre de la interfaz usando el runtime incluido, sin depender de `JAVA_HOME` ni de Java en `PATH`.
+
+Windows registra una versión numérica de tres componentes: `2.3.0-rc.1` se registra como `2.3.0`, aunque el archivo descargable conserva el sufijo completo. Para cambiar entre prereleases con la misma versión numérica, desinstala primero la anterior. Los instaladores generados no tienen firma digital de un editor; añadirla requiere un certificado de firma.
+
 ## GitHub Actions y Releases
 
-El workflow [`.github/workflows/distribution.yml`](.github/workflows/distribution.yml) compila y prueba en Windows y Linux. Se ejecuta en pull requests, pushes a `main`, `master`, `devel` y `codex/**`, y manualmente desde Actions. Ejecuta las pruebas Java, los smoke tests con Chrome y una prueba de la distribución instalada. Conserva los reportes durante 14 días y el ZIP con su SHA-256 durante 30 días como artefactos descargables de Actions.
+El workflow [`.github/workflows/distribution.yml`](.github/workflows/distribution.yml) compila y prueba en Windows y Linux. Se ejecuta en pull requests, pushes a `main`, `master`, `devel` y `codex/**`, y manualmente desde Actions. Ejecuta las pruebas Java, los smoke tests con Chrome y una prueba de la distribución instalada. Windows construye además el instalador y prueba su imagen con Java incluido. Conserva los reportes durante 14 días y el ZIP y el instalador con sus SHA-256 durante 30 días como artefactos descargables de Actions.
 
-Un push de una etiqueta de versión publica ese ZIP en **GitHub Releases**, después de que ambos sistemas pasen las pruebas:
+Un push de una etiqueta de versión publica el ZIP y el instalador en **GitHub Releases**, después de que ambos sistemas pasen las pruebas:
 
 ```powershell
 git tag -a v2.1.0 -m "QaRobot 2.1.0: ejecución desde terminal y distribuciones automáticas"
 git push origin v2.1.0
 ```
 
-Crea la etiqueta sobre el commit que quieras distribuir, una vez subidos los cambios del workflow. La etiqueta determina la versión del ZIP. Una etiqueta como `v2.1.0-rc.1` crea una prerelease. La publicación incluye notas generadas por GitHub y `SHA256SUMS.txt`. El permiso de escritura se limita al job de publicación y usa el `GITHUB_TOKEN` del repositorio.
+Crea la etiqueta sobre el commit que quieras distribuir, una vez subidos los cambios del workflow. La etiqueta determina la versión de los archivos. Una etiqueta como `v2.1.0-rc.1` crea una prerelease. La publicación incluye notas generadas por GitHub, `SHA256SUMS.txt` para el ZIP y `SHA256SUMS-windows.txt` para el instalador. El permiso de escritura se limita al job de publicación y usa el `GITHUB_TOKEN` del repositorio. Las etiquetas antiguas que todavía no incluyen las tareas de empaquetado nativo conservan la publicación de su ZIP.
 
 Si la release ya existe, el workflow compara por SHA-256 los archivos que ya tiene y sube únicamente los que faltan. Un reintento con los mismos archivos termina correctamente. Si un archivo del mismo nombre tiene contenido diferente, la publicación se detiene antes de subir archivos; usa una nueva etiqueta para distribuir contenido distinto. Se conservan el título, las notas y el estado de una release existente. Una release inmutable que tenga archivos pendientes debe completarse como una nueva versión.
 

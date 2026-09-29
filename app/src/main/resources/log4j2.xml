@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="error">
+    <Properties>
+        <Property name="logDirectory">${sys:user.home}/QaRobotWorkplace/logs</Property>
+    </Properties>
     <Appenders>
         <Console name="Console" target="SYSTEM_OUT">
             <PatternLayout>
@@ -8,7 +11,7 @@
                 </MarkerPatternSelector>
             </PatternLayout>
         </Console>
-        <RollingFile name="MyFile" fileName="logs/app.log" filePattern="logs/app.%d{MMM-dd}.log.zip">
+        <RollingFile name="MyFile" fileName="${logDirectory}/app.log" filePattern="${logDirectory}/app.%d{MMM-dd}.log.zip">
             <PatternLayout>
                 <MarkerPatternSelector defaultPattern="%threadName %sn. %msg: Logger=%logger%n">
                     <PatternMatch key="CLASS" pattern="%threadName %sn. %msg: Class=%class%n"/>
