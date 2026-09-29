@@ -169,7 +169,23 @@ git tag -a v2.1.0 -m "QaRobot 2.1.0: ejecución desde terminal y distribuciones 
 git push origin v2.1.0
 ```
 
-Crea la etiqueta sobre el commit que quieras distribuir, una vez subidos los cambios del workflow. La etiqueta determina la versión del ZIP. Una etiqueta como `v2.1.0-rc.1` crea una prerelease. La publicación incluye notas generadas por GitHub y `SHA256SUMS.txt`; una versión ya publicada se conserva y requiere otra etiqueta para una nueva distribución. El permiso de escritura se limita al job de publicación y usa el `GITHUB_TOKEN` del repositorio.
+Crea la etiqueta sobre el commit que quieras distribuir, una vez subidos los cambios del workflow. La etiqueta determina la versión del ZIP. Una etiqueta como `v2.1.0-rc.1` crea una prerelease. La publicación incluye notas generadas por GitHub y `SHA256SUMS.txt`. El permiso de escritura se limita al job de publicación y usa el `GITHUB_TOKEN` del repositorio.
+
+Si la release ya existe, el workflow compara por SHA-256 los archivos que ya tiene y sube únicamente los que faltan. Un reintento con los mismos archivos termina correctamente. Si un archivo del mismo nombre tiene contenido diferente, la publicación se detiene antes de subir archivos; usa una nueva etiqueta para distribuir contenido distinto. Se conservan el título, las notas y el estado de una release existente. Una release inmutable que tenga archivos pendientes debe completarse como una nueva versión.
+
+Para completar una release creada previamente o publicar una etiqueta con el workflow actualizado:
+
+1. Sube esta versión del workflow y asegúrate de que también esté disponible en la rama predeterminada del repositorio, para habilitar **Run workflow**.
+2. En **Actions → Build, test and distribute → Run workflow**, elige una rama que contenga el workflow corregido.
+3. Escribe la etiqueta existente, por ejemplo `v2.2.0-op.1`, en **release_tag**.
+
+La ejecución manual usa las herramientas de publicación de la rama seleccionada y compila el commit de la etiqueta, fijado una sola vez para Windows y Linux. Si dejas **release_tag** vacío, solo construye la referencia seleccionada y guarda artefactos. **Re-run jobs** sobre una ejecución anterior conserva el workflow de aquella ejecución; para incorporar correcciones, inicia una ejecución manual nueva.
+
+Las pruebas del publicador usan respuestas simuladas de GitHub y se pueden ejecutar localmente sin credenciales ni publicaciones:
+
+```powershell
+python -m unittest discover -s .github/scripts -p test_publish_distribution.py -v
+```
 
 ## Dependencias y apariencia
 
