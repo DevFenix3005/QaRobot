@@ -97,7 +97,7 @@ public class QaRobotContext {
     }
 
     public void shuwdownExecutor() {
-        this.pausableExecutor.shutdown();
+        this.pausableExecutor.shutdownNow();
     }
 
     public void reset() {

@@ -40,7 +40,7 @@ public class PausableExecutor extends ScheduledThreadPoolExecutor {
     }
 
     public void pause() {
-        monitor.enterIf(notPaused);
+        monitor.enter();
         try {
             isPaused = true;
         } finally {
@@ -49,11 +49,23 @@ public class PausableExecutor extends ScheduledThreadPoolExecutor {
     }
 
     public void resume() {
-        monitor.enterIf(paused);
+        monitor.enter();
         try {
             isPaused = false;
         } finally {
             monitor.leave();
         }
+    }
+
+    @Override
+    public void shutdown() {
+        resume();
+        super.shutdown();
+    }
+
+    @Override
+    public java.util.List<Runnable> shutdownNow() {
+        resume();
+        return super.shutdownNow();
     }
 }

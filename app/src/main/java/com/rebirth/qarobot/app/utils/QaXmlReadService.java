@@ -108,7 +108,7 @@ public class QaXmlReadService {
         Transformer transformer = transformerFactory.newTransformer();
         transformer.setOutputProperty(OutputKeys.METHOD, "xml");
         transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-        transformer.setOutputProperty(OutputKeys.ENCODING, "ISO-8859-1");
+        transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
         transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "8");
 
         StringWriter writer = new StringWriter();
@@ -118,15 +118,22 @@ public class QaXmlReadService {
         xml = randomStringProcessor(xml);
 
         File tempXml = File.createTempFile("QaBot3005_", ".xml", new File(Objects.requireNonNull(StandardSystemProperty.JAVA_IO_TMPDIR.value())));
-        Files.asByteSink(tempXml)
-                .write(xml.getBytes(StandardCharsets.ISO_8859_1));
-
-        xsdValidation(tempXml, qarobotWrapper);
-        if (qarobotWrapper.isValidXml()) {
-            JAXBContext jaxbContext = JAXBContext.newInstance(Qarobot.class);
-            Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();
-            Qarobot qarobot = (Qarobot) unmarshaller.unmarshal(tempXml);
-            qarobotWrapper.setQarobot(qarobot);
+        try {
+            Files.asByteSink(tempXml).write(xml.getBytes(StandardCharsets.UTF_8));
+            xsdValidation(tempXml, qarobotWrapper);
+            if (qarobotWrapper.isValidXml()) {
+                JAXBContext jaxbContext = JAXBContext.newInstance(Qarobot.class);
+                Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();
+                Qarobot qarobot = (Qarobot) unmarshaller.unmarshal(tempXml);
+                qarobotWrapper.setQarobot(qarobot);
+            }
+        } catch (IOException | JAXBException | RuntimeException failure) {
+            try {
+                java.nio.file.Files.deleteIfExists(tempXml.toPath());
+            } catch (IOException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+            throw failure;
         }
 
         qarobotWrapper.setXmlFile(this.qaXmlFile);
@@ -160,8 +167,7 @@ public class QaXmlReadService {
     private void searchAllInclude(Element rootElement, File file, boolean isTheParent) throws NotFoundQaXmlFile {
 
         StringBuilder desc = new StringBuilder();
-        try {
-            InputStream bufferedInputStream = Files.asByteSource(file).openBufferedStream();
+        try (InputStream bufferedInputStream = Files.asByteSource(file).openBufferedStream()) {
             Document originDocument = documentBuilder.parse(bufferedInputStream);
             Element origenElement = originDocument.getDocumentElement();
             origenElement.normalize();

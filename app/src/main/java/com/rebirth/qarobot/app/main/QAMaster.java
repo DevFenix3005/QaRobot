@@ -59,10 +59,19 @@ public class QAMaster implements Runnable {
     public QaRobotXml getScrappingComponentProviderQaRobot() {
         MainViewModel mainViewModel = this.mainViewModelLazy.get();
         @Nullable Browser innerBrowser = mainViewModel.getBrowser().getValue();
-        //GraphicsDevice value = mainViewModel.getSelectedScreen().getValue();
-        return this.scrappingComponentProvider.get()
-                .create(innerBrowser)
-                .getQaRobotXml();
+        ScrappingComponent component = this.scrappingComponentProvider.get().create(innerBrowser);
+        var resources = component.getExecutionResources();
+        try {
+            return component.getQaRobotXml();
+        } catch (RuntimeException | Error failure) {
+            // Construction can allocate a browser before a script or report template fails.
+            try {
+                resources.close();
+            } catch (RuntimeException | Error cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+            throw failure;
+        }
     }
 
     public MyQAVideoRecorder getRecordComponentProvider(File movieFolder) {

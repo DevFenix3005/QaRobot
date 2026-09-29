@@ -4,14 +4,18 @@ plugins {
 }
 
 group = "com.rebirth.qarobot"
-version = "2.0"
+val releaseVersion = providers.gradleProperty("releaseVersion")
+if (releaseVersion.isPresent && !releaseVersion.get().matches(Regex("""[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?"""))) {
+    throw GradleException("releaseVersion debe tener formato 2.1.0 o 2.1.0-rc.1")
+}
+version = releaseVersion.getOrElse("2.0")
 
 // Convention plugins access the consuming project's catalog through the public API.
 val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_25
-    targetCompatibility = JavaVersion.VERSION_25
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
 tasks.withType<JavaCompile>().configureEach {

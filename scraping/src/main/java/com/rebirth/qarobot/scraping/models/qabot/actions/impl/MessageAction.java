@@ -24,6 +24,10 @@ public class MessageAction extends Action<MessageActionType> {
 
     @Override
     public void execute() {
+        if (Boolean.getBoolean("qarobot.cli")) {
+            log.info("Mensaje: {}", this.actionDto.getMsg());
+            return;
+        }
         String body = "<h2>" + this.actionDto.getMsg() + "</h2><br/>";
         body += "<h5>" + this.actionDto.getDesc() + "</h5>";
         String htmlTemplate = this.seleniumHelper.createHtml(body);

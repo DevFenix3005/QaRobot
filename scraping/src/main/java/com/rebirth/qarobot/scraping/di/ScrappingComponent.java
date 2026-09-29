@@ -8,6 +8,7 @@ import com.rebirth.qarobot.scraping.di.modules.ScriptModule;
 import com.rebirth.qarobot.scraping.di.modules.action.ActionModule;
 import com.rebirth.qarobot.scraping.enums.Browser;
 import com.rebirth.qarobot.scraping.impl.QaRobotXmlImpl;
+import com.rebirth.qarobot.scraping.utils.ExecutionResources;
 import dagger.BindsInstance;
 import dagger.Subcomponent;
 
@@ -23,6 +24,8 @@ import dagger.Subcomponent;
 public interface ScrappingComponent {
 
     QaRobotXmlImpl getQaRobotXml();
+
+    ExecutionResources getExecutionResources();
 
     @Subcomponent.Factory
     interface Factory {

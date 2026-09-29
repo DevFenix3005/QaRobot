@@ -1,0 +1,150 @@
+name: Build, test and distribute
+
+on:
+  push:
+    branches: [main, master, devel, 'codex/**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: distribution-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  build:
+    name: Test and package (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: dashboardtemplate/package-lock.json
+
+      - name: Set up Gradle and validate the wrapper
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-provider: basic
+
+      - name: Build, test and package
+        env:
+          BUILD_REF_TYPE: ${{ github.ref_type }}
+          BUILD_REF_NAME: ${{ github.ref_name }}
+        run: |
+          $gradleArguments = @(
+            'clean', 'test', ':scraping:browserSmokeTest', ':app:installDist', ':app:distZip',
+            '-Pbrowser=CHROME', '--no-daemon', '--stacktrace', '--console=plain'
+          )
+          if ($env:BUILD_REF_TYPE -eq 'tag') {
+            if ($env:BUILD_REF_NAME -cnotmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$') {
+              throw 'Release tags must have the form v2.1.0 or v2.1.0-rc.1.'
+            }
+            $gradleArguments += '-PreleaseVersion=' + $env:BUILD_REF_NAME.Substring(1)
+          }
+          if ($IsWindows) {
+            & .\gradlew.bat @gradleArguments
+          } else {
+            & bash ./gradlew @gradleArguments
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Exercise the installed CLI with Chrome
+        run: |
+          & ./.github/scripts/Test-Distribution.ps1 `
+            -DistributionPath ./app/build/install/QaRobot `
+            -OutputPath ./build/ci-smoke
+
+      - name: Collect test reports and failure evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-reports-${{ matrix.os }}
+          path: |
+            */build/reports/tests/
+            */build/test-results/
+            build/ci-smoke/
+          if-no-files-found: warn
+          retention-days: 14
+
+      # Both platforms validate the package; Linux supplies the portable release ZIP.
+      - name: Calculate the distribution checksum
+        if: runner.os == 'Linux'
+        run: |
+          $archives = @(Get-ChildItem -LiteralPath app/build/distributions -Filter 'QaRobot-*.zip' -File)
+          if ($archives.Count -ne 1) { throw 'Expected exactly one QaRobot distribution ZIP.' }
+          $hash = (Get-FileHash -LiteralPath $archives[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($archives[0].Name)" | Set-Content -LiteralPath app/build/distributions/SHA256SUMS.txt -Encoding utf8NoBOM
+
+      - name: Save the downloadable distribution
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: QaRobot-distribution
+          path: |
+            app/build/distributions/QaRobot-*.zip
+            app/build/distributions/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  release:
+    name: Publish the tagged distribution
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download the tested distribution
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: QaRobot-distribution
+          path: release-assets
+
+      - name: Verify and publish the release
+        shell: bash
+        working-directory: release-assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          sha256sum --check SHA256SUMS.txt
+          archive="QaRobot-${RELEASE_TAG#v}.zip"
+          test -f "$archive"
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            echo "::error::Release $RELEASE_TAG already exists. Existing assets are preserved; publish a new version tag."
+            exit 1
+          fi
+          release_flags=()
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            release_flags+=(--prerelease)
+          fi
+          gh release create "$RELEASE_TAG" "$archive" SHA256SUMS.txt \
+            --verify-tag --title "QaRobot $RELEASE_TAG" --generate-notes "${release_flags[@]}"

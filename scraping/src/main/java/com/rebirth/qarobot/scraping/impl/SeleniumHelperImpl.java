@@ -104,7 +104,7 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
         this.interpolationPattern = patternEnumPatternMap.get(PatternEnum.INTERPOLATION_PATTERN);
         this.verifyElementPattern = patternEnumPatternMap.get(PatternEnum.VERIFYELEMENT_PATTERN);
 
-        if (!Boolean.getBoolean("qarobot.headless") && !GraphicsEnvironment.isHeadless()) {
+        if (!Boolean.getBoolean("qarobot.cli") && !Boolean.getBoolean("qarobot.headless") && !GraphicsEnvironment.isHeadless()) {
             Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
             double width = screenSize.getWidth();
             Point point = new Point((int) width, 0);
@@ -557,7 +557,8 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
                 template = "OMITIDA!!!![ " + template + " ]";
             }
             this.sendAction2View(action, Color.CYAN, null);
-            if (!(action instanceof MessageActionType) && !skip) {
+            if (!(action instanceof MessageActionType) && !skip
+                    && !Boolean.getBoolean("qarobot.cli") && showInDialog != null) {
                 sendMessage2Dialog(action);
             }
         }
@@ -633,6 +634,9 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
 
     @Override
     public void pauseFromAction() {
+        if (Boolean.getBoolean("qarobot.cli")) {
+            throw new IllegalStateException("La pausa stop kill=false requiere la GUI. Usa stop kill=true para finalizar un escenario desde terminal.");
+        }
         if (this.puaseExecutionFromStopAction != null) {
             this.puaseExecutionFromStopAction.pause();
         }
@@ -645,7 +649,7 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
 
     @Override
     public void sendQaContet2View() {
-        if (this.qaRobotContext != null) {
+        if (this.qaContext2View != null) {
             this.qaContext2View.send(this.qaRobotContext);
         }
     }
