@@ -40,16 +40,17 @@ public class ScriptAction extends Action<ScriptActionType> {
             String id = actionDto.getId();
             String verifyScript = actionDto.getBody();
             String setterKeyName = actionDto.getSet();
-            String resultado = rhinox.runScript(id, verifyScript).toString();
+            Object resultado = rhinox.runScript(id, verifyScript);
 
             if (Objects.nonNull(setterKeyName)) {
-                this.seleniumHelper.addValue2Contexto(setterKeyName, resultado);
+                this.seleniumHelper.addValue2Contexto(setterKeyName, String.valueOf(resultado));
             }
         } catch (ScriptException scriptException) {
             log.info(scriptException.getMessage());
             log.info("Column error {}", scriptException.getColumnNumber());
             log.info("File error {}", scriptException.getFileName());
             log.error("QaRobot#verifyAction::parseEx", scriptException);
+            throw new IllegalStateException("Fallo el script de la accion " + actionDto.getId(), scriptException);
         }
 
 

@@ -7,11 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.*;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -27,6 +29,9 @@ import com.rebirth.qarobot.commons.utils.SendInfo2View;
 import com.rebirth.qarobot.commons.utils.SendQaContext2View;
 import com.rebirth.qarobot.commons.utils.ShowInDialog;
 import com.rebirth.qarobot.scraping.QaRobotXml;
+import com.rebirth.qarobot.scraping.di.ScrappingComponent;
+import com.rebirth.qarobot.scraping.impl.QaRobotXmlImpl;
+import com.rebirth.qarobot.scraping.utils.ExecutionResources;
 
 class QAMasterLifecycleTest {
     @TempDir
@@ -112,6 +117,72 @@ class QAMasterLifecycleTest {
         assertFalse(harness.viewModel.getPauseOrResumenActionExecution().hasObservers());
         assertEquals(PauseOrResumeState.NONE,
                 harness.viewModel.getPauseOrResumenActionExecution().getValue());
+    }
+
+    @Test
+    void partialInitializationClosesResourcesBeforeReportingFailureToTheGui() {
+        ExecutionResources resources = new ExecutionResources();
+        IllegalStateException failure = new IllegalStateException("Report template is missing");
+        Harness harness = failingInitialization(resources, failure);
+        AtomicInteger closes = new AtomicInteger();
+        resources.add(() -> {
+            assertNull(harness.viewModel.failure, "Cleanup must finish before the GUI is re-enabled");
+            assertFalse(harness.viewModel.getStatusInitButton().getValue());
+            closes.incrementAndGet();
+        });
+
+        harness.master.run();
+
+        assertEquals(1, closes.get());
+        assertSame(failure, harness.viewModel.failure);
+        assertTrue(harness.viewModel.getStatusInitButton().getValue());
+        assertEquals(0, harness.viewModel.successes);
+        assertFalse(harness.viewModel.getPauseOrResumenActionExecution().hasObservers());
+        resources.close();
+        assertEquals(1, closes.get());
+    }
+
+    @Test
+    void initializationFailureRemainsThePrimaryErrorIfResourceCleanupAlsoFails() {
+        ExecutionResources resources = new ExecutionResources();
+        IOException cleanupFailure = new IOException("Browser shutdown failed");
+        resources.add(() -> { throw cleanupFailure; });
+        IllegalStateException failure = new IllegalStateException("JavaScript library is invalid");
+        Harness harness = failingInitialization(resources, failure);
+
+        harness.master.run();
+
+        assertSame(failure, harness.viewModel.failure);
+        assertEquals(1, failure.getSuppressed().length);
+        assertSame(cleanupFailure, failure.getSuppressed()[0].getCause());
+        assertTrue(harness.viewModel.getStatusInitButton().getValue());
+        assertEquals(0, harness.viewModel.successes);
+    }
+
+    private Harness failingInitialization(ExecutionResources resources, RuntimeException failure) {
+        ScrappingComponent component = new ScrappingComponent() {
+            @Override
+            public QaRobotXmlImpl getQaRobotXml() {
+                throw failure;
+            }
+
+            @Override
+            public ExecutionResources getExecutionResources() {
+                return resources;
+            }
+        };
+        AtomicReference<MainViewModel> viewModelReference = new AtomicReference<>();
+        QAMaster master = new QAMaster(null, () -> browser -> component, null, viewModelReference::get);
+        QarobotWrapper wrapper = new QarobotWrapper();
+        wrapper.setValidXml(true);
+        wrapper.setDashboardExitFile(reports.toFile());
+        master.setQarobot(wrapper);
+        TestViewModel viewModel = new TestViewModel(master);
+        viewModelReference.set(viewModel);
+        viewModel.getSearchButton().onNext(false);
+        viewModel.getStatusInitButton().onNext(false);
+        viewModel.getPauseOrResumenStatus().onNext(true);
+        return new Harness(master, viewModel);
     }
 
     private Harness harness(StubRobot... robots) {

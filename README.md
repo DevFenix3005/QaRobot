@@ -1,13 +1,13 @@
 # QaRobot
 
-QaRobot es una herramienta de QA de escritorio construida en Java/Swing. Envuelve Selenium para ejecutar flujos definidos en XML, permite elegir Chrome, Edge o Firefox, ejecuta verificaciones y genera un reporte HTML con los resultados.
+QaRobot es una herramienta de QA con interfaz Java/Swing y ejecución desde terminal. Envuelve Selenium para ejecutar flujos definidos en XML, permite elegir Chrome, Edge o Firefox, ejecuta verificaciones y genera reportes HTML y resultados JUnit para CI.
 
 ## Requisitos
 
-- Windows 10/11 (la interfaz es Swing; el código también conserva rutas portables para otros sistemas).
-- JDK 17 o superior. El proyecto compila a bytecode Java 17; JDK 25 funciona con el wrapper incluido.
+- Windows 10/11 para la interfaz; el pipeline también comprueba la terminal en Linux.
+- JDK 25 recomendado para compilar y ejecutar la distribución. El código del proyecto se compila a bytecode Java 17.
 - Un navegador compatible: Chrome, Edge o Firefox.
-- Node.js 20 o superior solo si se va a reconstruir el dashboard.
+- Node.js 20 o superior para reconstruir el dashboard o empaquetar una distribución; el pipeline usa Node.js 24. No se necesita Node para usar una distribución ya descargada.
 
 Los drivers no necesitan copiarse al repositorio. Selenium Manager los localiza y los descarga la primera vez que se usa un navegador. Si se requiere un driver fijo, colócalo en `webdrivers/` dentro de la instalación de QaRobot (`chromedriver.exe`, `msedgedriver.exe` o `geckodriver.exe`).
 
@@ -26,6 +26,38 @@ La aplicación crea su espacio de trabajo en `%USERPROFILE%\QaRobotWorkplace`. P
 ```
 
 El selector de la ventana permite elegir el navegador. `Chrome` es la opción inicial. La ventana puede abrirse desde cualquier directorio cuando se ejecuta con Gradle o desde la distribución generada; las plantillas del reporte se resuelven junto con la aplicación.
+
+## Ejecutar desde terminal
+
+Desde el repositorio, puedes ejecutar un escenario sin abrir la interfaz:
+
+```powershell
+.\gradlew.bat :app:run --args="run examples/offline-smoke.xml --browser chrome --output build/reportes --junit build/resultados.xml"
+```
+
+Desde la carpeta de una distribución descomprimida:
+
+```powershell
+.\bin\app.bat run examples\dynamic-waits.xml --output reportes --junit reportes\resultados.xml
+.\bin\app.bat run --help
+```
+
+En Linux, usa `bash ./bin/app` en lugar de `.\bin\app.bat`. Sin argumentos se abre la GUI.
+
+| Opción | Comportamiento |
+| --- | --- |
+| `run ARCHIVO_O_CARPETA [...]` | Ejecuta uno o más archivos o carpetas. Las carpetas aportan sus XML inmediatos en orden de nombre, sin recorrer subcarpetas. |
+| `--browser chrome\|edge\|firefox` | Elige navegador; Chrome es el predeterminado. |
+| `--headless` / `--headed` | Oculta o muestra el navegador. Por defecto se ejecuta sin ventana. |
+| `--workspace CARPETA` | Ubicación del espacio de trabajo y las bibliotecas JavaScript. |
+| `--output CARPETA` | Carpeta para reportes HTML y evidencias; cada escenario recibe una subcarpeta nueva. Por defecto: `<workspace>/dashboards`. |
+| `--junit ARCHIVO` | Guarda un resultado JUnit XML conjunto con un caso por escenario. |
+
+Las rutas relativas parten del directorio desde el que se invoca el comando. Cada XML usa una sesión nueva del navegador y la suite continúa aunque falle otro escenario. Cada archivo de una carpeta debe ser un escenario completo: si contiene fragmentos para `include`, indica explícitamente los XML principales.
+
+La terminal devuelve `0` si todos los escenarios pasan, `1` si hay verificaciones fallidas o errores de ejecución y `2` si los argumentos son inválidos. Para integrar QaRobot con otras herramientas de CI, invoca directamente `bin/app` o `bin/app.bat`; Gradle puede convertir un fallo de la aplicación en su propio código de salida.
+
+En modo terminal, `message` escribe en el log, `stop kill="false"` produce un error porque necesita intervención en la GUI y `stop kill="true"` conserva la terminación explícita del escenario. Los errores de JavaScript se propagan al resultado. Las rutas de archivos de propiedades en `<configuration>` se resuelven respecto al XML y un archivo ausente se informa como error.
 
 ## Ejemplo offline
 
@@ -107,15 +139,37 @@ npm.cmd ci
 npm.cmd run build
 ```
 
-La aplicación usa la copia distribuible de `app/dashboardtemplate/`; después de cambiar el fuente, copia los artefactos generados allí antes de empaquetar una distribución.
+Al empaquetar, Gradle ejecuta `npm ci` y construye el dashboard automáticamente. Combina los artefactos de `dashboardtemplate/dist/` con la plantilla `app/dashboardtemplate/index.ftl`. La ejecución de desarrollo con `:app:run` usa la copia de `app/dashboardtemplate/`; actualízala si quieres probar allí cambios visuales del dashboard.
 
 ## Empaquetar
 
 ```powershell
 .\gradlew.bat :app:installDist
+.\gradlew.bat :app:distZip '-PreleaseVersion=2.1.0'
 ```
 
-La distribución queda en `app/build/install/QaRobot/`. Su ejecutable está en `app/build/install/QaRobot/bin/app.bat`.
+La instalación queda en `app/build/install/QaRobot/` y el ZIP en `app/build/distributions/QaRobot-2.1.0.zip`. Incluyen los lanzadores para Windows y Linux, las dependencias, el dashboard, los ejemplos y la documentación. La versión predeterminada sigue siendo `2.0`; `releaseVersion` permite indicar una versión como `2.1.0` o `2.1.0-rc.1`.
+
+Para comprobar una instalación completa con PowerShell 7 y Chrome:
+
+```powershell
+.\.github\scripts\Test-Distribution.ps1 -DistributionPath app/build/install/QaRobot -OutputPath build/ci-smoke
+```
+
+El script ejecuta un escenario correcto y la carpeta completa de ejemplos. Comprueba los códigos de salida, HTML, JUnit, capturas y que la suite continúe después del fallo deliberado.
+
+## GitHub Actions y Releases
+
+El workflow [`.github/workflows/distribution.yml`](.github/workflows/distribution.yml) compila y prueba en Windows y Linux. Se ejecuta en pull requests, pushes a `main`, `master`, `devel` y `codex/**`, y manualmente desde Actions. Ejecuta las pruebas Java, los smoke tests con Chrome y una prueba de la distribución instalada. Conserva los reportes durante 14 días y el ZIP con su SHA-256 durante 30 días como artefactos descargables de Actions.
+
+Un push de una etiqueta de versión publica ese ZIP en **GitHub Releases**, después de que ambos sistemas pasen las pruebas:
+
+```powershell
+git tag -a v2.1.0 -m "QaRobot 2.1.0: ejecución desde terminal y distribuciones automáticas"
+git push origin v2.1.0
+```
+
+Crea la etiqueta sobre el commit que quieras distribuir, una vez subidos los cambios del workflow. La etiqueta determina la versión del ZIP. Una etiqueta como `v2.1.0-rc.1` crea una prerelease. La publicación incluye notas generadas por GitHub y `SHA256SUMS.txt`; una versión ya publicada se conserva y requiere otra etiqueta para una nueva distribución. El permiso de escritura se limita al job de publicación y usa el `GITHUB_TOKEN` del repositorio.
 
 ## Dependencias y apariencia
 
@@ -132,7 +186,7 @@ La interfaz usa FlatLaf y toma automáticamente el tema claro u oscuro del siste
 - `commons`: modelos, esquema XML y utilidades compartidas.
 - `scraping`: Selenium, acciones XML, interpolación y scripts GraalJS.
 - `record`: grabación de pantalla.
-- `app`: interfaz Swing y orquestación.
+- `app`: interfaz Swing, comandos de terminal y orquestación.
 - `dashboardtemplate`: fuente SCSS/JavaScript del reporte.
 
 El modelo Java del XML se genera durante la compilación desde `commons/src/main/resources/com/rebirth/qarobot/commons/xsd/qarobot_v2.xsd`; no es necesario instalar JAXB ni ejecutar una tarea adicional.

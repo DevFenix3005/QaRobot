@@ -20,6 +20,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import com.rebirth.qarobot.commons.di.annotations.scopes.ChildComponent;
 import com.rebirth.qarobot.commons.models.dtos.Configuracion;
 import com.rebirth.qarobot.scraping.SeleniumHelper;
+import com.rebirth.qarobot.scraping.utils.ExecutionResources;
 
 import java.io.File;
 import java.time.Duration;
@@ -32,6 +33,12 @@ public abstract class DriverModule {
 
     @Provides
     @ChildComponent()
+    static WebDriver managedWebDriverProvider(Configuracion configuracion, Browser browser, ExecutionResources resources) {
+        WebDriver driver = webDriverProvider(configuracion, browser);
+        resources.add(driver::quit);
+        return driver;
+    }
+
     public static WebDriver webDriverProvider(Configuracion configuracion, Browser browser) {
         File executable = configuredDriver(configuracion, browser);
         MutableCapabilities options = browserOptions(browser, Boolean.getBoolean("qarobot.headless"));

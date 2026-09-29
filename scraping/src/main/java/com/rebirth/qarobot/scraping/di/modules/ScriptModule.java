@@ -4,6 +4,7 @@ import dagger.Module;
 import dagger.Provides;
 import com.rebirth.qarobot.commons.di.annotations.scopes.ChildComponent;
 import com.rebirth.qarobot.commons.models.dtos.Configuracion;
+import com.rebirth.qarobot.scraping.utils.ExecutionResources;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
@@ -33,6 +34,12 @@ public abstract class ScriptModule {
 
     @Provides
     @ChildComponent
+    static ScriptEngine managedScopeProvide(ScriptEngineManager manager, Configuracion configuration, ExecutionResources resources) {
+        ScriptEngine engine = scopeProvide(manager, configuration);
+        if (engine instanceof AutoCloseable closeable) resources.add(closeable);
+        return engine;
+    }
+
     public static ScriptEngine scopeProvide(ScriptEngineManager scriptEngineManager, Configuracion configuracion) {
         ScriptEngine graalEngine = scriptEngineManager.getEngineByName("graal.js");
         if (graalEngine == null) {

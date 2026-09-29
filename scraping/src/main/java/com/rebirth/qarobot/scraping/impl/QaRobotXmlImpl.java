@@ -6,6 +6,7 @@ import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 import com.rebirth.qarobot.scraping.models.qabot.actions.Action;
 import com.rebirth.qarobot.scraping.utils.ActionRunner;
+import com.rebirth.qarobot.scraping.utils.ExecutionResources;
 import com.rebirth.qarobot.scraping.utils.AssetsFilterFile;
 import com.rebirth.qarobot.scraping.utils.predicates.OkPredicate;
 import com.rebirth.qarobot.scraping.utils.predicates.SkipPredicate;
@@ -60,18 +61,30 @@ public final class QaRobotXmlImpl implements QaRobotXml {
     private final Template template;
     private final Configuracion configuracion;
     private QarobotWrapper mainQaRobot;
+    private final ExecutionResources executionResources;
+    private Throwable executionFailure;
 
     @Inject
     public QaRobotXmlImpl(
             SeleniumHelper seleniumHelper,
             Map<Class<? extends BaseActionType>, Action<? extends BaseActionType>> actionMap,
             Template template,
-            Configuracion configuracion
+            Configuracion configuracion,
+            ExecutionResources executionResources
     ) {
         this.seleniumHelper = seleniumHelper;
         this.actionMap = actionMap;
         this.template = template;
         this.configuracion = configuracion;
+        this.executionResources = executionResources;
+        executionResources.add(seleniumHelper::shutdownExecutor);
+    }
+
+    public QaRobotXmlImpl(SeleniumHelper seleniumHelper,
+                          Map<Class<? extends BaseActionType>, Action<? extends BaseActionType>> actionMap,
+                          Template template, Configuracion configuracion) {
+        this(seleniumHelper, actionMap, template, configuracion, new ExecutionResources());
+        executionResources.add(seleniumHelper::closeDriver);
     }
 
     public void setQaRobot(QarobotWrapper mainQaRobot) {
@@ -79,6 +92,7 @@ public final class QaRobotXmlImpl implements QaRobotXml {
     }
 
     public boolean flux() {
+        executionFailure = null;
         Throwable exception = null;
         try {
             this.seleniumHelper.initializeFailureEvidence(mainQaRobot.getDashboardExitFile().toPath());
@@ -143,6 +157,7 @@ public final class QaRobotXmlImpl implements QaRobotXml {
                 log.error("No se pudo generar el reporte", reportFailure);
             }
         }
+        executionFailure = exception;
         return exception == null && this.seleniumHelper.verificacionesOk();
     }
 
@@ -209,7 +224,9 @@ public final class QaRobotXmlImpl implements QaRobotXml {
                     future.get();
                 } catch (InterruptedException e) {
                     log.error("QaRobotXmlImpl::startInvokeActions -> InterruptedException", e);
+                    future.cancel(true);
                     Thread.currentThread().interrupt();
+                    throw new ExecutionException(e);
                 } finally {
                     this.seleniumHelper.sendQaContet2View();
                 }
@@ -280,11 +297,17 @@ public final class QaRobotXmlImpl implements QaRobotXml {
             String propertiesPath = robotConfiguration.getProperties();
             if (propertiesPath != null) {
                 File propertiesFile = new File(propertiesPath);
+                if (Boolean.getBoolean("qarobot.cli") && !propertiesFile.isAbsolute()) {
+                    propertiesFile = new File(mainQaRobot.getXmlFile().getAbsoluteFile().getParentFile(), propertiesPath);
+                }
                 try (InputStream is = new FileInputStream(propertiesFile)) {
                     Properties prop = new Properties();
                     prop.load(is);
                     prop.forEach((key, value) -> this.seleniumHelper.addValue2Contexto(key.toString(), value.toString()));
                 } catch (IOException e) {
+                    if (Boolean.getBoolean("qarobot.cli")) {
+                        throw new IllegalStateException("No se pudo cargar el archivo de propiedades " + propertiesFile, e);
+                    }
                     log.error("No se pudo cargar el archivo de propiedades " + propertiesPath, e);
                 }
             }
@@ -299,8 +322,10 @@ public final class QaRobotXmlImpl implements QaRobotXml {
 
     @Override
     public void close() {
-        this.seleniumHelper.cleanContexto();
-        this.seleniumHelper.closeDriver();
-        this.getMainQaRobot().setDashboardExitFile(null);
+        try {
+            this.executionResources.close();
+        } finally {
+            if (mainQaRobot != null) mainQaRobot.setDashboardExitFile(null);
+        }
     }
 }
