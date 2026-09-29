@@ -1,3 +1,4 @@
+import java.lang.module.ModuleFinder
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
@@ -92,6 +93,18 @@ val nativeIcon = layout.projectDirectory.file("packaging/QaRobot.ico")
 val consoleLauncherProperties = layout.projectDirectory.file("packaging/windows-cli.properties")
 val nativeMainJar = tasks.named<Jar>("jar").flatMap { it.archiveFileName }
 val jpackageExecutable = File(System.getProperty("java.home"), "bin/jpackage.exe")
+// Match jpackage's default roots (modules exporting public APIs) and keep the
+// runtime providers that have no public exports, without binding packaging tools.
+val nativeRuntimeProviders = setOf(
+    "jdk.charsets", "jdk.localedata", "jdk.crypto.cryptoki",
+    "jdk.crypto.mscapi", "jdk.naming.dns", "jdk.naming.rmi"
+)
+val nativeRuntimeModules = ModuleFinder.ofSystem().findAll()
+    .map { it.descriptor() }
+    .filter { module ->
+        module.exports().any { !it.isQualified } || module.name() in nativeRuntimeProviders
+    }
+    .map { it.name() }.sorted().joinToString(",")
 
 fun windowsPackageVersion(applicationVersion: String): String {
     val components = applicationVersion.substringBefore('-').split('.').toMutableList()
@@ -178,6 +191,7 @@ val jpackageImage = tasks.register<Exec>("jpackageImage") {
     inputs.property("javaHome", System.getProperty("java.home"))
     inputs.property("javaRuntimeVersion", System.getProperty("java.runtime.version"))
     inputs.property("architecture", System.getProperty("os.arch"))
+    inputs.property("runtimeModules", nativeRuntimeModules)
     outputs.dir(nativeImageDirectory)
 
     doFirst {
@@ -202,7 +216,10 @@ val jpackageImage = tasks.register<Exec>("jpackageImage") {
             "--java-options", "-Dstdout.encoding=UTF-8",
             "--java-options", "-Dstderr.encoding=UTF-8",
             "--java-options", "-Dqarobot.home=\$APPDIR",
-            "--jlink-options", "--strip-native-commands --strip-debug --no-man-pages --no-header-files --bind-services"
+            // --bind-services pulls in jdk.jlink, forbidden by Temurin's JEP 493 runtime.
+            // Use concrete names: mixing ALL-DEFAULT with providers can drop the defaults.
+            "--add-modules", nativeRuntimeModules,
+            "--jlink-options", "--strip-native-commands --strip-debug --no-man-pages --no-header-files"
         )
     }
     doLast {
