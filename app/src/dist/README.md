@@ -4,13 +4,26 @@ Herramienta de QA para ejecutar escenarios XML con Selenium, desde la interfaz g
 
 ## Requisitos
 
-Instala JDK 25 y Chrome, Edge o Firefox. Configura `JAVA_HOME` o deja `java` disponible en `PATH`. Selenium Manager obtiene el driver del navegador; la primera ejecución puede necesitar internet. La distribución ya incluye las bibliotecas y el dashboard.
+Instala Chrome, Edge o Firefox. El instalador de Windows incluye Java; para usar el ZIP portable instala además JDK 25 y configura `JAVA_HOME` o deja `java` disponible en `PATH`. Selenium Manager obtiene el driver del navegador; la primera ejecución puede necesitar internet. La distribución ya incluye las bibliotecas y el dashboard.
 
-## Interfaz gráfica
+## Instalación en Windows
+
+Ejecuta el instalador `QaRobot-VERSION-windows-x64.exe`. Después, abre **QaRobot** desde el menú Inicio o desde `QaRobot.exe` en la carpeta de instalación. Puedes desinstalarlo desde las aplicaciones instaladas de Windows.
+
+Para usar la terminal desde la carpeta de instalación:
+
+```powershell
+.\QaRobot-cli.exe run .\app\examples\offline-smoke.xml
+.\QaRobot-cli.exe --help
+```
+
+En esta instalación, los ejemplos están en `app/examples/` y la documentación en `app/docs/`. Los datos del usuario se guardan por defecto en `%USERPROFILE%\QaRobotWorkplace` y los logs en su subcarpeta `logs`.
+
+## Interfaz gráfica del ZIP portable
 
 En Windows, ejecuta `bin/app.bat`. En Linux, ejecuta `bash ./bin/app` desde una sesión de escritorio.
 
-## Terminal
+## Terminal del ZIP portable
 
 Desde esta carpeta, en PowerShell:
 
