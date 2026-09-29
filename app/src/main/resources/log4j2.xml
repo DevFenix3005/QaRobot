@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="error">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout>
+                <MarkerPatternSelector defaultPattern="%threadName %sn. %msg: Logger=%logger%n">
+                    <PatternMatch key="CLASS" pattern="%threadName %sn. %msg: Class=%class%n"/>
+                </MarkerPatternSelector>
+            </PatternLayout>
+        </Console>
+        <RollingFile name="MyFile" fileName="logs/app.log" filePattern="logs/app.%d{MMM-dd}.log.zip">
+            <PatternLayout>
+                <MarkerPatternSelector defaultPattern="%threadName %sn. %msg: Logger=%logger%n">
+                    <PatternMatch key="CLASS" pattern="%threadName %sn. %msg: Class=%class%n"/>
+                </MarkerPatternSelector>
+            </PatternLayout>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+                <SizeBasedTriggeringPolicy size="10 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="10"/>
+        </RollingFile>
+    </Appenders>
+    <Loggers>
+        <Root level="TRACE">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="MyFile"/>
+        </Root>
+    </Loggers>
+</Configuration>

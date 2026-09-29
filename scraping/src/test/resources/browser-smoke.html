@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>QaRobot browser smoke test</title>
+<body>
+  <label>Nombre <input id="name" value="Anterior"></label>
+  <label>Entorno
+    <select id="environment">
+      <option>Desarrollo</option>
+      <option>Pruebas</option>
+    </select>
+  </label>
+  <button id="submit" type="button">Confirmar</button>
+  <ul id="items"><li>Primero</li><li>Segundo</li></ul>
+  <script>
+    document.querySelector('#submit').addEventListener('click', () => {
+      setTimeout(() => {
+        const result = document.createElement('p');
+        result.id = 'result';
+        result.textContent = document.querySelector('#name').value + ' - '
+          + document.querySelector('#environment').value;
+        document.body.append(result);
+      }, 300);
+    });
+  </script>
+</body>
+</html>

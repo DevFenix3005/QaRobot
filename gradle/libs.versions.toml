@@ -1,0 +1,68 @@
+[versions]
+asciiTable = "1.8.0"
+dagger = "2.60.1"
+flatlaf = "3.7.2"
+freemarker = "2.3.35"
+graal = "25.0.4.1.1"
+guava = "33.7.1-jre"
+jackson = "3.1.7"
+jakartaXmlBind = "4.0.5"
+jaxb = "4.0.9"
+jsonpath = "3.0.0"
+junit = "6.1.3"
+log4j = "2.26.1"
+lombok = "1.18.48"
+lorem = "2.1"
+monteRecorder = "0.7.7.0"
+nodePlugin = "7.1.0"
+rxjava = "3.1.12"
+selenium = "4.49.0"
+systemThemeDetector = "3.9"
+unirest = "3.14.5"
+
+[libraries]
+# Shared Java dependencies
+dagger = { module = "com.google.dagger:dagger", version.ref = "dagger" }
+dagger-compiler = { module = "com.google.dagger:dagger-compiler", version.ref = "dagger" }
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
+lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
+log4j-api = { module = "org.apache.logging.log4j:log4j-api", version.ref = "log4j" }
+log4j-core = { module = "org.apache.logging.log4j:log4j-core", version.ref = "log4j" }
+log4j-slf4j = { module = "org.apache.logging.log4j:log4j-slf4j2-impl", version.ref = "log4j" }
+jakarta-xml-bind = { module = "jakarta.xml.bind:jakarta.xml.bind-api", version.ref = "jakartaXmlBind" }
+jaxb-runtime = { module = "org.glassfish.jaxb:jaxb-runtime", version.ref = "jaxb" }
+jaxb-xjc = { module = "org.glassfish.jaxb:jaxb-xjc", version.ref = "jaxb" }
+
+# Jackson 3 modules are aligned by the BOM; java.time support is built into databind.
+jackson-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson" }
+jackson-databind = { module = "tools.jackson.core:jackson-databind" }
+jackson-yaml = { module = "tools.jackson.dataformat:jackson-dataformat-yaml" }
+jackson-xml = { module = "tools.jackson.dataformat:jackson-dataformat-xml" }
+
+# Automation, scripting, reports and desktop UI
+ascii-table = { module = "com.github.freva:ascii-table", version.ref = "asciiTable" }
+flatlaf = { module = "com.formdev:flatlaf", version.ref = "flatlaf" }
+system-theme-detector = { module = "org.openani.jsystemthemedetector:jSystemThemeDetector", version.ref = "systemThemeDetector" }
+freemarker = { module = "org.freemarker:freemarker", version.ref = "freemarker" }
+graal-js-community = { module = "org.graalvm.polyglot:js-community", version.ref = "graal" }
+graal-js-scriptengine = { module = "org.graalvm.js:js-scriptengine", version.ref = "graal" }
+jsonpath = { module = "com.jayway.jsonpath:json-path", version.ref = "jsonpath" }
+lorem = { module = "com.thedeanda:lorem", version.ref = "lorem" }
+monte-screen-recorder = { module = "com.github.stephenc.monte:monte-screen-recorder", version.ref = "monteRecorder" }
+rxjava = { module = "io.reactivex.rxjava3:rxjava", version.ref = "rxjava" }
+selenium-java = { module = "org.seleniumhq.selenium:selenium-java", version.ref = "selenium" }
+unirest = { module = "com.konghq:unirest-java", version.ref = "unirest" }
+
+# JUnit modules are aligned by the BOM.
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api" }
+junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+
+[bundles]
+graal-js = ["graal-js-community", "graal-js-scriptengine"]
+jackson = ["jackson-databind", "jackson-yaml", "jackson-xml"]
+log4j = ["log4j-api", "log4j-core", "log4j-slf4j"]
+
+[plugins]
+node = { id = "com.github.node-gradle.node", version.ref = "nodePlugin" }

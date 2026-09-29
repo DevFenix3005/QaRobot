@@ -1,3 +1,15 @@
+.gradle/
+.idea/
+build/
+workdir/
+out/
+webdrivers/
+auth/
+logs/
+*.zip
+*.log
+
+
 # Compiled class file
 *.class
 
@@ -12,6 +24,7 @@
 
 # Package Files #
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear
@@ -21,3 +34,6 @@
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
+
+node_modules/
+dist/
