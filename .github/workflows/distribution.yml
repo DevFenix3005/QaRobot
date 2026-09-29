@@ -6,17 +6,73 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing version tag to build and publish (blank only builds the selected ref)'
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: distribution-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  group: distribution-${{ github.workflow }}-${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && inputs.release_tag == '' }}
 
 jobs:
+  prepare:
+    name: Validate publication and resolve sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      release_tag: ${{ steps.version.outputs.tag }}
+      source_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Validate the requested version
+        id: version
+        shell: pwsh
+        env:
+          REQUESTED_RELEASE_TAG: ${{ inputs.release_tag }}
+          BUILD_REF_TYPE: ${{ github.ref_type }}
+          BUILD_REF_NAME: ${{ github.ref_name }}
+          BUILD_EVENT: ${{ github.event_name }}
+        run: |
+          $tag = ''
+          if ($env:BUILD_EVENT -eq 'workflow_dispatch') {
+            $tag = $env:REQUESTED_RELEASE_TAG
+          } elseif ($env:BUILD_EVENT -eq 'push' -and $env:BUILD_REF_TYPE -eq 'tag') {
+            $tag = $env:BUILD_REF_NAME
+          }
+          if ($tag -and $tag -cnotmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$') {
+            throw 'Release tags must have the form v2.1.0 or v2.1.0-rc.1.'
+          }
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Check out publication tools from the selected workflow commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          path: workflow-source
+
+      - name: Test release creation and retries without publishing
+        run: python3 -m unittest discover -s workflow-source/.github/scripts -p test_publish_distribution.py -v
+
+      - name: Resolve the version's source commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
+          persist-credentials: false
+          path: source
+
+      - name: Pin the source commit for both platforms
+        id: source
+        working-directory: source
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   build:
     name: Test and package (${{ matrix.os }})
+    needs: prepare
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -30,6 +86,7 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
           persist-credentials: false
 
       - name: Set up Java
@@ -52,18 +109,14 @@ jobs:
 
       - name: Build, test and package
         env:
-          BUILD_REF_TYPE: ${{ github.ref_type }}
-          BUILD_REF_NAME: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
         run: |
           $gradleArguments = @(
             'clean', 'test', ':scraping:browserSmokeTest', ':app:installDist', ':app:distZip',
             '-Pbrowser=CHROME', '--no-daemon', '--stacktrace', '--console=plain'
           )
-          if ($env:BUILD_REF_TYPE -eq 'tag') {
-            if ($env:BUILD_REF_NAME -cnotmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$') {
-              throw 'Release tags must have the form v2.1.0 or v2.1.0-rc.1.'
-            }
-            $gradleArguments += '-PreleaseVersion=' + $env:BUILD_REF_NAME.Substring(1)
+          if ($env:RELEASE_TAG) {
+            $gradleArguments += '-PreleaseVersion=' + $env:RELEASE_TAG.Substring(1)
           }
           if ($IsWindows) {
             & .\gradlew.bat @gradleArguments
@@ -113,13 +166,19 @@ jobs:
 
   release:
     name: Publish the tagged distribution
-    needs: build
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [prepare, build]
+    if: needs.prepare.outputs.release_tag != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
     steps:
+      - name: Check out publication tools from the selected workflow commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
       - name: Download the tested distribution
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -128,23 +187,9 @@ jobs:
 
       - name: Verify and publish the release
         shell: bash
-        working-directory: release-assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
         run: |
-          set -euo pipefail
-          sha256sum --check SHA256SUMS.txt
-          archive="QaRobot-${RELEASE_TAG#v}.zip"
-          test -f "$archive"
-          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
-            echo "::error::Release $RELEASE_TAG already exists. Existing assets are preserved; publish a new version tag."
-            exit 1
-          fi
-          release_flags=()
-          if [[ "$RELEASE_TAG" == *-* ]]; then
-            release_flags+=(--prerelease)
-          fi
-          gh release create "$RELEASE_TAG" "$archive" SHA256SUMS.txt \
-            --verify-tag --title "QaRobot $RELEASE_TAG" --generate-notes "${release_flags[@]}"
+          python3 .github/scripts/publish_distribution.py --tag "$RELEASE_TAG" --assets release-assets
