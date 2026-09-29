@@ -9,7 +9,7 @@ public enum Browser {
 
     FIREFOX(FirefoxDriver.class, "webdriver.gecko.driver", "geckodriver.exe"),
     CHROME(ChromeDriver.class, "webdriver.chrome.driver", "chromedriver.exe"),
-    EDGE(EdgeDriver.class, "", "");
+    EDGE(EdgeDriver.class, "webdriver.edge.driver", "msedgedriver.exe");
 
 
     private final Class<? extends WebDriver> webdriver;
@@ -31,7 +31,9 @@ public enum Browser {
     }
 
     public String getPath2WebDriver() {
-        return path2WebDriver;
+        return System.getProperty("os.name", "").startsWith("Windows")
+                ? path2WebDriver
+                : path2WebDriver.replace(".exe", "");
     }
 
 }

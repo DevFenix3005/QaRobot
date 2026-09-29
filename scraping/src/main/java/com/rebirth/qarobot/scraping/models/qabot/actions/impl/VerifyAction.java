@@ -68,9 +68,9 @@ public final class VerifyAction extends Action<VerifyActionType> {
     }
 
     @Override
-    public void beforeExecute() {
+    public void delayPreExecutor() {
         try {
-            super.beforeExecute();
+            super.delayPreExecutor();
 
             List<SelectorType> selectorTypeList = this.actionDto.getSelector();
             if (selectorTypeList.isEmpty()) {
@@ -165,7 +165,7 @@ public final class VerifyAction extends Action<VerifyActionType> {
         String validation;
         boolean valueIsContained = false;
 
-        List<WebElement> webElements = this.seleniumHelper.getWebElements(this.actionDto.getId(), this.actionDto.getSelector());
+        List<WebElement> webElements = this.seleniumHelper.getWebElements(this.actionDto);
         int webElementsSize = webElements.size();
 
         if (webElementsSize > 0) {
@@ -197,6 +197,7 @@ public final class VerifyAction extends Action<VerifyActionType> {
             chooseActionType.setId(this.actionDto.getId());
             chooseActionType.setDesc(this.actionDto.getDesc());
             chooseActionType.setTimeout(this.actionDto.getTimeout());
+            chooseActionType.setWaitTimeout(this.actionDto.getWaitTimeout());
             chooseActionType.setOrder(this.actionDto.getOrder());
             chooseActionType.setSkip(this.actionDto.isSkip());
             chooseActionType.setValue(this.actionDto.getValue());

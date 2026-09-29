@@ -5,6 +5,7 @@ import com.rebirth.qarobot.commons.di.enums.PatternEnum;
 import com.rebirth.qarobot.commons.exceptions.NoVar2InterpolationFoundInContextEx;
 import com.rebirth.qarobot.commons.exceptions.NotFoundWebElement;
 import com.rebirth.qarobot.commons.models.dtos.Configuracion;
+import com.rebirth.qarobot.commons.models.dtos.FailureEvidence;
 import com.rebirth.qarobot.commons.models.dtos.QaRobotContext;
 import com.rebirth.qarobot.commons.models.dtos.Verificador;
 import com.rebirth.qarobot.commons.models.dtos.dialogs.MyOwnIcos;
@@ -26,6 +27,7 @@ import com.rebirth.qarobot.scraping.SeleniumHelper;
 import com.rebirth.qarobot.scraping.enums.MyLogicSimbols;
 import com.rebirth.qarobot.scraping.models.qabot.Value;
 import com.rebirth.qarobot.scraping.utils.InterpolationResult;
+import com.rebirth.qarobot.scraping.utils.FailureEvidenceCollector;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.By;
@@ -33,22 +35,23 @@ import org.openqa.selenium.Keys;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.Point;
 import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebDriverException;
+import org.openqa.selenium.StaleElementReferenceException;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.interactions.Actions;
-import org.openqa.selenium.interactions.MoveTargetOutOfBoundsException;
-import org.openqa.selenium.support.ui.ExpectedCondition;
-import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 import javax.inject.Inject;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.GraphicsEnvironment;
 import java.awt.Toolkit;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,6 +61,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -81,6 +85,8 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
 
     private static final TimeUnit TIME_METRIC = TimeUnit.MILLISECONDS;
     private SendQaContext2View qaContext2View;
+    private String lastResolvedSelector;
+    private FailureEvidenceCollector failureEvidenceCollector;
 
     @Inject
     public SeleniumHelperImpl(WebDriver webDriver,
@@ -98,13 +104,14 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
         this.interpolationPattern = patternEnumPatternMap.get(PatternEnum.INTERPOLATION_PATTERN);
         this.verifyElementPattern = patternEnumPatternMap.get(PatternEnum.VERIFYELEMENT_PATTERN);
 
-        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-        double width = screenSize.getWidth();
-
-        Point point = new Point((int) width, 0);
-        WebDriver.Window window = this.driver.manage().window();
-        window.setPosition(point);
-        window.maximize();
+        if (!Boolean.getBoolean("qarobot.headless") && !GraphicsEnvironment.isHeadless()) {
+            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+            double width = screenSize.getWidth();
+            Point point = new Point((int) width, 0);
+            WebDriver.Window window = this.driver.manage().window();
+            window.setPosition(point);
+            window.maximize();
+        }
     }
 
     @Override
@@ -125,6 +132,33 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
     @Override
     public void addVerificacion2Context(Verificador verificador) {
         this.qaRobotContext.addVerificador(verificador);
+        if (!verificador.isOk() && !verificador.isSkip()) {
+            captureEvidence(getCurrentAction(), null, verificador);
+        }
+    }
+
+    @Override
+    public void initializeFailureEvidence(Path reportDirectory) {
+        failureEvidenceCollector = new FailureEvidenceCollector(driver, reportDirectory);
+    }
+
+    @Override
+    public void captureFailure(BaseActionType action, Throwable failure) {
+        captureEvidence(action, failure, null);
+    }
+
+    @Override
+    public List<FailureEvidence> getFailureEvidence() {
+        return failureEvidenceCollector == null ? List.of() : failureEvidenceCollector.getEvidence();
+    }
+
+    private void captureEvidence(BaseActionType action, Throwable failure, Verificador verification) {
+        if (failureEvidenceCollector == null) return;
+        try {
+            failureEvidenceCollector.capture(action, lastResolvedSelector, failure, verification);
+        } catch (RuntimeException captureFailure) {
+            log.warn("No se pudo completar la evidencia del fallo", captureFailure);
+        }
     }
 
     @Override
@@ -147,61 +181,95 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
 
     @Override
     public WebElement getWebElement(String id, List<SelectorType> selectors) {
-        WebElement webElement = null;
-        String path = "?";
-        for (SelectorType selector : selectors) {
-            path = selector.getValue();
-            By elementReference = this.processBy(selector);
-            try {
-                ExpectedCondition<WebElement> expectedCondition = ExpectedConditions.presenceOfElementLocated(elementReference);
-                webElement = wait.until(expectedCondition);
-                break;
-            } catch (WebDriverException webDriverException) {
-                log.error("No se encontro por el selector: {}", selector);
-                log.error("Error:", webDriverException);
-            }
+        return getWebElement(id, selectors, ElementReadiness.PRESENT, null);
+    }
+
+    @Override
+    public WebElement getWebElement(String id, List<SelectorType> selectors,
+                                    ElementReadiness readiness, BigInteger waitTimeout) {
+        return waitForElement(id, selectors, waitTimeout, readiness.name(), element -> isReady(element, readiness));
+    }
+
+    private WebElement waitForElement(String id, List<SelectorType> selectors, BigInteger waitTimeout,
+                                      String condition, Predicate<WebElement> ready) {
+        if (selectors.isEmpty()) {
+            throw new NotFoundWebElement(id, "No selectors configured for action " + id, selectors);
         }
-        if (Objects.isNull(webElement))
-            throw new NotFoundWebElement(id, "WebElement not found", selectors);
+        // Check all alternatives in each poll so a missing first selector does not consume the whole deadline.
         try {
-            Actions action00 = new Actions(driver);
-            action00.moveToElement(webElement);
-            action00.perform();
-        } catch (MoveTargetOutOfBoundsException err) {
-            log.error("Problemas con el path " + path, err);
+            return actionWait(waitTimeout).until(currentDriver -> {
+                for (SelectorType selector : selectors) {
+                    try {
+                        WebElement element = currentDriver.findElement(processBy(selector));
+                        lastResolvedSelector = describeSelector(selector);
+                        if (ready.test(element)) return element;
+                    } catch (NoSuchElementException | StaleElementReferenceException transientFailure) {
+                        // The DOM may change between locating the element and checking its state.
+                    }
+                }
+                return null;
+            });
+        } catch (TimeoutException timeout) {
+            throw waitFailure(id, selectors, condition, waitTimeout, timeout);
         }
-        return webElement;
+    }
+
+    private boolean isReady(WebElement element, ElementReadiness readiness) {
+        return switch (readiness) {
+            case PRESENT -> true;
+            case VISIBLE -> element.isDisplayed();
+            case CLICKABLE -> element.isDisplayed() && element.isEnabled();
+            case EDITABLE -> element.isDisplayed() && element.isEnabled()
+                    && !"true".equalsIgnoreCase(element.getDomAttribute("readonly"));
+        };
+    }
+
+    private WebDriverWait actionWait(BigInteger waitTimeout) {
+        if (waitTimeout == null) return wait;
+        long milliseconds = waitTimeout.longValueExact();
+        if (milliseconds < 0) throw new IllegalArgumentException("waitTimeout must be non-negative");
+        return new WebDriverWait(driver, Duration.ofMillis(milliseconds), Duration.ofMillis(100));
+    }
+
+    private NotFoundWebElement waitFailure(String id, List<SelectorType> selectors, String condition,
+                                           BigInteger waitTimeout, TimeoutException timeout) {
+        long milliseconds = waitTimeout == null ? configuracion.timeout() : waitTimeout.longValueExact();
+        String attempted = selectors.stream().map(this::describeSelector).collect(java.util.stream.Collectors.joining(", "));
+        NotFoundWebElement failure = new NotFoundWebElement(id,
+                "Action " + id + " timed out after " + milliseconds + " ms waiting for " + condition
+                        + "; selectors: " + attempted, selectors);
+        failure.initCause(timeout);
+        return failure;
+    }
+
+    private String describeSelector(SelectorType selector) {
+        return selector.getBy() + ": " + selector.getValue();
     }
 
     @Override
     public List<WebElement> getWebElements(String id, List<SelectorType> selectors) {
+        return getWebElements(id, selectors, null);
+    }
 
-        List<WebElement> webElement = null;
-        String path = "?";
-        for (SelectorType selector : selectors) {
-            path = selector.getValue();
-            By childsElementReference = this.processBy(selector);
-            try {
-                ExpectedCondition<List<WebElement>> expectedCondition = ExpectedConditions.presenceOfAllElementsLocatedBy(childsElementReference);
-                webElement = wait.until(expectedCondition);
-            } catch (WebDriverException webDriverException) {
-                log.error("No se encontro por el selector: {}", selector);
-                log.error("Error:", webDriverException);
-            }
+    @Override
+    public List<WebElement> getWebElements(String id, List<SelectorType> selectors, BigInteger waitTimeout) {
+        if (selectors.isEmpty()) {
+            throw new NotFoundWebElement(id, "No selectors configured for action " + id, selectors);
         }
-        if (Objects.isNull(webElement))
-            throw new NotFoundWebElement(id, "WebElement not found", selectors);
-
-        WebElement parentElement = webElement.get(0).findElement(By.xpath("./.."));
         try {
-            Actions action00 = new Actions(driver);
-            action00.moveToElement(parentElement);
-            action00.perform();
-        } catch (MoveTargetOutOfBoundsException err) {
-            log.error("Problemas con el path " + path, err);
+            return actionWait(waitTimeout).until(currentDriver -> {
+                for (SelectorType selector : selectors) {
+                    List<WebElement> elements = currentDriver.findElements(processBy(selector));
+                    if (!elements.isEmpty()) {
+                        lastResolvedSelector = describeSelector(selector);
+                        return elements;
+                    }
+                }
+                return null;
+            });
+        } catch (TimeoutException timeout) {
+            throw waitFailure(id, selectors, "PRESENT", waitTimeout, timeout);
         }
-
-        return webElement;
     }
 
 
@@ -218,7 +286,11 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
 
     @Override
     public String getValueFromWebElement(String id, List<SelectorType> selector) {
-        WebElement webElement = this.getWebElement(id, selector);
+        return getValueFromWebElement(this.getWebElement(id, selector));
+    }
+
+    @Override
+    public String getValueFromWebElement(WebElement webElement) {
         String value = getShowedValue(webElement);
         value = new String(value.getBytes(StandardCharsets.ISO_8859_1));
         return normilizeText(value);
@@ -243,11 +315,18 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
     public void setValueToVadiinsUglyDropdown(ChooseActionType chooseActionType) {
         String id = chooseActionType.getId();
         List<SelectorType> selector = chooseActionType.getSelector();
-        WebElement webElement = this.getWebElement(chooseActionType);
         String value = chooseActionType.getValue();
         ListType listaOpciones = chooseActionType.getList();
 
         String realValue = getRealValue(value, listaOpciones);
+
+        WebElement webElement = waitForElement(id, selector, chooseActionType.getWaitTimeout(),
+                "CLICKABLE with option " + realValue, candidate -> {
+                    if (!isReady(candidate, ElementReadiness.CLICKABLE)) return false;
+                    if (!"select".equalsIgnoreCase(candidate.getTagName())) return true;
+                    return new Select(candidate).getOptions().stream()
+                            .anyMatch(option -> realValue.equals(option.getText()) && option.isEnabled());
+                });
 
         NotFoundWebElement notFoundWebElement = new NotFoundWebElement(id, "No se encontro la opcion dentro del select la opcion " + realValue, selector);
 
@@ -395,7 +474,6 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
 
     @Override
     public void closeDriver() {
-        this.driver.close();
         this.driver.quit();
     }
 
@@ -462,6 +540,8 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
 
     @Override
     public void actionLog(BaseActionType action) {
+        this.qaRobotContext.getCurrentAction().set(action);
+        this.lastResolvedSelector = null;
         boolean iterationChild = action.isIterationChild();
         String id = action.getId();
         String desc = action.getDesc();
@@ -473,7 +553,6 @@ public final class SeleniumHelperImpl implements SeleniumHelper {
         if (iterationChild) {
             template = "Corriendo en iteracion" + "[" + template + "]";
         } else {
-            this.qaRobotContext.getCurrentAction().set(action);
             if (skip) {
                 template = "OMITIDA!!!![ " + template + " ]";
             }

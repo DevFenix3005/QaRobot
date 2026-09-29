@@ -3,6 +3,7 @@ package com.rebirth.qarobot.app.main;
 
 import dagger.Lazy;
 import io.reactivex.rxjava3.annotations.Nullable;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.subjects.BehaviorSubject;
 import jakarta.xml.bind.JAXBException;
 import lombok.Data;
@@ -30,6 +31,7 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Data
@@ -107,35 +109,68 @@ public class QAMaster implements Runnable {
         }
 
         boolean finishSuccess = true;
+        AtomicReference<Throwable> failure = new AtomicReference<>();
 
-        for (int i = 1; i <= innerIteration; i++) {
-            mainViewModel.getStatusBar().onNext(String.format("Iniciando la iteracion numero %d de la prueba", i));
-
-            try (QaRobotXml scrapping = this.getScrappingComponentProviderQaRobot()) {
-
-                File dashboardExitDir = this.qarobot.getDashboardExitFile();
-                if (!dashboardExitDir.exists()) {
-                    dashboardExitDir.mkdirs();
-                } else if (!this.qarobot.getDashboardExitFile().isDirectory()) {
-                    throw new IOException("\"" + dashboardExitDir.getAbsolutePath() + "\" is not a directory.");
+        try {
+            for (int i = 1; i <= innerIteration; i++) {
+                // BehaviorSubject replays its last value to each new execution.
+                mainViewModel.getPauseOrResumenActionExecution().onNext(PauseOrResumeState.NONE);
+                mainViewModel.getStatusBar().onNext(String.format("Iniciando la iteracion numero %d de la prueba", i));
+                try {
+                    finishSuccess = executeIteration(mainViewModel, innerRec, failure);
+                } catch (IOException | RuntimeException e) {
+                    finishSuccess = false;
+                    failure.compareAndSet(null, e);
+                    break;
                 }
+                if (!finishSuccess || failure.get() != null) break;
+                if (i != innerIteration) {
+                    mainViewModel.cleanTableColor();
+                }
+            }
+        } finally {
+            mainViewModel.getPauseOrResumenActionExecution().onNext(PauseOrResumeState.NONE);
+        }
 
-                mainViewModel.getPauseOrResumenActionExecution()
-                        .filter(state -> state != PauseOrResumeState.NONE)
-                        .subscribe(pauseOrResumen -> {
-                            if (pauseOrResumen == PauseOrResumeState.RESUME) {
-                                scrapping.pauseExecution();
-                            } else {
-                                scrapping.resumenExecution();
-                            }
-                        });
-                scrapping.setQaRobot(this.qarobot);
+        // Re-enable the UI only after recording and browser cleanup have completed.
+        if (finishSuccess && failure.get() == null) {
+            mainViewModel.getHideMyDialog().onNext(true);
+            mainViewModel.finishQa();
+        } else {
+            Throwable error = failure.get();
+            mainViewModel.finishQaWithError(error != null ? error
+                    : new IllegalStateException("La prueba terminó con errores. Revisa el reporte de ejecución."));
+        }
+    }
+
+    private boolean executeIteration(MainViewModel mainViewModel, boolean record,
+                                     AtomicReference<Throwable> failure) throws IOException {
+        try (QaRobotXml scrapping = this.getScrappingComponentProviderQaRobot()) {
+            scrapping.setQaRobot(this.qarobot);
+            File dashboardExitDir = this.qarobot.getDashboardExitFile();
+            if (!dashboardExitDir.isDirectory() && !dashboardExitDir.mkdirs()) {
+                throw new IOException("No se pudo crear el directorio del reporte: " + dashboardExitDir);
+            }
+
+            Disposable pauseSubscription = mainViewModel.getPauseOrResumenActionExecution()
+                    .filter(state -> state != PauseOrResumeState.NONE)
+                    .subscribe(pauseOrResumen -> {
+                        if (pauseOrResumen == PauseOrResumeState.RESUME) {
+                            scrapping.pauseExecution();
+                        } else {
+                            scrapping.resumenExecution();
+                        }
+                    });
+            try {
                 scrapping.delegateSenders2SeleniumHelper(
-                        data -> mainViewModel.getInteraccionData2ChangeAdvanceInTable().onNext(data),
+                        data -> {
+                            if (data.getThrowable() != null) failure.compareAndSet(null, data.getThrowable());
+                            mainViewModel.getInteraccionData2ChangeAdvanceInTable().onNext(data);
+                        },
                         new ShowInDialog() {
                             @Override
-                            public void run(TitleIconAndMsgPojo titleIconAndMsgPojo) {
-                                mainViewModel.getSendInfo2MyDialog().onNext(titleIconAndMsgPojo);
+                            public void run(TitleIconAndMsgPojo info) {
+                                mainViewModel.getSendInfo2MyDialog().onNext(info);
                             }
 
                             @Override
@@ -144,34 +179,22 @@ public class QAMaster implements Runnable {
                             }
                         },
                         () -> mainViewModel.getPauseOrResumenActionExecution().onNext(PauseOrResumeState.RESUME),
-                        (qaRobotContext -> mainViewModel.getShowEvalTable().onNext(qaRobotContext))
+                        context -> mainViewModel.getShowEvalTable().onNext(context)
                 );
+                if (!record) return scrapping.flux();
 
-                if (innerRec) {
-                    MyQAVideoRecorder myQAVideoRecorder = this.getRecordComponentProvider(dashboardExitDir);
-                    myQAVideoRecorder.start();
-                    finishSuccess &= scrapping.flux();
-                    myQAVideoRecorder.stop();
-                } else {
-                    finishSuccess &= scrapping.flux();
+                MyQAVideoRecorder recorder = this.getRecordComponentProvider(dashboardExitDir);
+                recorder.start();
+                try {
+                    return scrapping.flux();
+                } finally {
+                    recorder.stop();
                 }
-            } catch (IOException e) {
-                mainViewModel.finishQaWithError(e);
-                break;
-            }
-
-            if (i != innerIteration) {
-                mainViewModel.cleanTableColor();
+            } finally {
+                // Release callbacks before closing the browser and its executor.
+                pauseSubscription.dispose();
             }
         }
-        if (finishSuccess) {
-            mainViewModel.getHideMyDialog().onNext(true);
-            mainViewModel.finishQa();
-        }
-
-        mainViewModel.getPauseOrResumenActionExecution().onNext(PauseOrResumeState.NONE);
-        //return finishSuccess;
     }
-
 
 }

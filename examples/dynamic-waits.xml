@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Resultado esperado: todas las verificaciones pasan y no se genera evidencia de fallo.
+     Pagina autocontenida: no requiere servidor ni archivos adicionales.
+     Cada control se prepara 3500 ms despues del paso anterior.
+     timeout="0" elimina la pausa XML; waitTimeout="8000" limita la espera del elemento.
+     Los avisos informativos de la GUI pueden agregar tiempo entre pasos. -->
+<qarobot xmlns="https://www.qarobot.rebirth.com.mx">
+    <configuration/>
+    <open id="abrir-demo" desc="Abrir la demo local de esperas" order="1" timeout="0"
+          url="data:text/html;charset=utf-8,%3C!doctype%20html%3E%0A%3Chtml%20lang%3D%22es%22%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3EQaRobot%20-%20Esperas%20dinamicas%3C%2Ftitle%3E%0A%3Cstyle%3Ebody%7Bfont%3A18px%20system-ui%3Bbackground%3A%23eef2f7%3Bcolor%3A%23172235%3Bmargin%3A40px%7Dmain%7Bmax-width%3A680px%3Bmargin%3Aauto%3Bpadding%3A32px%3Bbackground%3Awhite%3Bborder-radius%3A16px%7Dlabel%7Bdisplay%3Ablock%3Bmargin%3A20px%200%7Dinput%2Cselect%2Cbutton%7Bfont%3Ainherit%3Bpadding%3A10px%3Bmargin%3A8px%200%7Dbutton%7Bcursor%3Apointer%7D%23estado%7Bpadding%3A16px%3Bbackground%3A%23eef2ff%3Bborder-radius%3A8px%7D%23resultado%7Bfont-weight%3Abold%3Bcolor%3A%23146c43%7D%3C%2Fstyle%3E%0A%3Cmain%3E%3Ch1%3EEsperas%20de%20QaRobot%3C%2Fh1%3E%3Cp%3ECada%20paso%20prepara%20el%20siguiente%20control%20con%203.5%20segundos%20de%20retraso.%3C%2Fp%3E%0A%3Cp%20id%3D%22estado%22%3EListo%20para%20comenzar.%3C%2Fp%3E%3Cbutton%20id%3D%22iniciar%22%3EIniciar%20demo%3C%2Fbutton%3E%0A%3Clabel%20id%3D%22nombre-grupo%22%20style%3D%22display%3Anone%22%3ENombre%20%3Cinput%20id%3D%22nombre%22%20disabled%20readonly%3E%3C%2Flabel%3E%0A%3Clabel%20id%3D%22ambiente-grupo%22%20style%3D%22display%3Anone%22%3EAmbiente%20%3Cselect%20id%3D%22ambiente%22%20disabled%3E%3Coption%20value%3D%22%22%3ECargando%20opciones...%3C%2Foption%3E%3C%2Fselect%3E%3C%2Flabel%3E%0A%3Cbutton%20id%3D%22guardar%22%20disabled%3EGuardar%3C%2Fbutton%3E%3Cp%20id%3D%22resultado%22%20style%3D%22display%3Anone%22%3E%3C%2Fp%3E%3C%2Fmain%3E%0A%3Cscript%3E%0Aconst%20%24%20%3D%20id%20%3D%3E%20document.getElementById(id)%3B%0Aconst%20status%20%3D%20message%20%3D%3E%20%24('estado').textContent%20%3D%20message%3B%0A%24('iniciar').onclick%20%3D%20()%20%3D%3E%20%7B%0A%20%20%24('iniciar').disabled%20%3D%20true%3B%0A%20%20status('Preparando%20el%20campo%20de%20nombre...')%3B%0A%20%20setTimeout(()%20%3D%3E%20%7B%0A%20%20%20%20%24('nombre-grupo').style.display%20%3D%20'block'%3B%0A%20%20%20%20%24('nombre').disabled%20%3D%20false%3B%0A%20%20%20%20%24('nombre').readOnly%20%3D%20false%3B%0A%20%20%20%20status('Campo%20editable.%20Esperando%20el%20nombre.')%3B%0A%20%20%7D%2C%203500)%3B%0A%7D%3B%0Alet%20optionsScheduled%20%3D%20false%3B%0A%24('nombre').oninput%20%3D%20()%20%3D%3E%20%7B%0A%20%20if%20(optionsScheduled%20%7C%7C%20!%24('nombre').value)%20return%3B%0A%20%20optionsScheduled%20%3D%20true%3B%0A%20%20%24('ambiente-grupo').style.display%20%3D%20'block'%3B%0A%20%20%24('ambiente').disabled%20%3D%20false%3B%0A%20%20status('Cargando%20la%20opcion%20Pruebas...')%3B%0A%20%20setTimeout(()%20%3D%3E%20%7B%0A%20%20%20%20%24('ambiente').add(new%20Option('Pruebas'%2C%20'Pruebas'))%3B%0A%20%20%20%20status('Opcion%20disponible.%20Esperando%20la%20seleccion.')%3B%0A%20%20%7D%2C%203500)%3B%0A%7D%3B%0A%24('ambiente').onchange%20%3D%20()%20%3D%3E%20%7B%0A%20%20status('Preparando%20el%20boton%20Guardar...')%3B%0A%20%20setTimeout(()%20%3D%3E%20%7B%20%24('guardar').disabled%20%3D%20false%3B%20status('Boton%20habilitado.')%3B%20%7D%2C%203500)%3B%0A%7D%3B%0A%24('guardar').onclick%20%3D%20()%20%3D%3E%20%7B%0A%20%20%24('guardar').disabled%20%3D%20true%3B%0A%20%20status('Procesando%20el%20formulario...')%3B%0A%20%20setTimeout(()%20%3D%3E%20%7B%0A%20%20%20%20%24('resultado').textContent%20%3D%20'READY_'%20%2B%20%24('nombre').value%20%2B%20'_'%20%2B%20%24('ambiente').value%3B%0A%20%20%20%20%24('resultado').style.display%20%3D%20'block'%3B%0A%20%20%20%20status('Terminado.%20El%20ejemplo%20debe%20pasar.')%3B%0A%20%20%7D%2C%203500)%3B%0A%7D%3B%0A%3C%2Fscript%3E%3C%2Fhtml%3E"/>
+    <click id="iniciar-demo" desc="Iniciar la preparacion de los controles" order="2" timeout="0" waitTimeout="8000">
+        <selector by="ID">iniciar</selector>
+    </click>
+    <!-- write espera a que el campo sea visible, habilitado y sin readonly. -->
+    <write id="escribir-nombre" desc="Esperar el campo editable y escribir" order="3" timeout="0" waitTimeout="8000" value="QaRobot" enter="false">
+        <selector by="ID">nombre</selector>
+    </write>
+    <!-- choose espera la opcion Pruebas dentro del select, que se agrega despues. -->
+    <choose id="elegir-ambiente" desc="Esperar la opcion Pruebas" order="4" timeout="0" waitTimeout="8000" value="Pruebas">
+        <selector by="ID">ambiente</selector>
+    </choose>
+    <!-- El primer selector no existe; el segundo comparte el mismo limite de espera. -->
+    <click id="guardar-formulario" desc="Esperar Guardar habilitado usando un selector alternativo" order="5" timeout="0" waitTimeout="8000">
+        <selector by="ID">guardar-antiguo</selector>
+        <selector by="CSS">#guardar</selector>
+    </click>
+    <!-- read espera a que el resultado aparezca y lo guarda en el contexto. -->
+    <read id="leer-resultado" desc="Esperar el resultado visible" order="6" timeout="0" waitTimeout="8000" set="resultado_obtenido">
+        <selector by="ID">resultado</selector>
+    </read>
+    <!-- verify comprueba el valor una vez: read ya espero la aparicion del resultado. -->
+    <verify id="verificar-resultado" desc="Confirmar READY_QaRobot_Pruebas" order="7" timeout="0" waitTimeout="1000"
+            elementStatus="CONTENT" value="READY_QaRobot_Pruebas">
+        <selector by="ID">resultado</selector>
+    </verify>
+</qarobot>

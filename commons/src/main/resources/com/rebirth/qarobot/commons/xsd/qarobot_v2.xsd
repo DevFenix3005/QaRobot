@@ -74,6 +74,7 @@
                 <xs:sequence>
                     <xs:element name="selector" type="selectorType" maxOccurs="unbounded"/>
                 </xs:sequence>
+                <xs:attribute name="waitTimeout" type="xs:unsignedLong"/>
             </xs:extension>
         </xs:complexContent>
     </xs:complexType>
@@ -83,6 +84,7 @@
                 <xs:sequence>
                     <xs:element name="selector" type="selectorType" minOccurs="0" maxOccurs="unbounded"/>
                 </xs:sequence>
+                <xs:attribute name="waitTimeout" type="xs:unsignedLong"/>
             </xs:extension>
         </xs:complexContent>
     </xs:complexType>

@@ -7,6 +7,21 @@
     </button>
 </#macro>
 
+<#macro failureVerificationRows verifications>
+    <#list verifications as verification>
+        <#if (verification.verificadorList)?has_content>
+            <@failureVerificationRows verifications=verification.verificadorList />
+        <#else>
+            <tr class="${verification.ok?then('table-success', 'table-danger')}">
+                <td>${verification.rule!"Sin regla"}</td>
+                <td class="text-break">${verification.evaluado!"No disponible"}</td>
+                <td class="text-break">${verification.resultado!"No disponible"}</td>
+                <td>${verification.resultadoEvaluacion!"No disponible"}</td>
+            </tr>
+        </#if>
+    </#list>
+</#macro>
+
 
 <#macro tableGenerator verificador_ok verificador_id verificador_rule verificador_evaluado verificador_resultado verificador_resultadoEvaluacion verificador_verificadorList=[]>
     <#if verificador_ok>
@@ -52,7 +67,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        <#include "main.css" parse=false encoding="ISO-8859-1"/>
+        <#include "main.css" parse=false encoding="UTF-8"/>
     </style>
     <title>QaRobot - Dashboard</title>
 </head>
@@ -88,7 +103,7 @@
                         type="button" role="tab" aria-controls="pills-xml" aria-selected="false">Ver XML
                 </button>
             </div>
-            <div class="tab-content" id="pills-tabContent" style="width: 100%">
+            <div class="tab-content" id="pills-tabContent" style="flex: 1; min-width: 0">
                 <div class="tab-pane fade show active" id="pills-resumen" role="tabpanel"
                      aria-labelledby="pills-resumen-tab"
                      tabindex="0">
@@ -128,6 +143,91 @@
                             </div>
                         </div>
                     </div>
+                    <section class="mb-5" aria-labelledby="failure-evidence-title">
+                        <#assign failures=failureEvidence![]>
+                        <h5 id="failure-evidence-title">Diagn&oacute;stico de fallos
+                            <span class="badge bg-${failures?has_content?then('danger', 'secondary')}">${failures?size}</span>
+                        </h5>
+                        <#list failures as failure>
+                            <article class="card border-danger mt-3">
+                                <div class="card-header bg-danger text-white">
+                                    <strong>Paso con fallo: ${failure.description!"Sin descripcion"}</strong>
+                                </div>
+                                <div class="card-body">
+                                    <dl class="row mb-3">
+                                        <dt class="col-sm-3">Identificador del paso</dt>
+                                        <dd class="col-sm-9 text-break">${failure.actionId!"No disponible"}</dd>
+                                        <dt class="col-sm-3">Tipo de acci&oacute;n</dt>
+                                        <dd class="col-sm-9 text-break">${failure.actionType!"No disponible"}</dd>
+                                        <dt class="col-sm-3">Momento del fallo</dt>
+                                        <dd class="col-sm-9">${failure.capturedAt!"No disponible"}</dd>
+                                        <dt class="col-sm-3">URL del navegador</dt>
+                                        <dd class="col-sm-9 text-break">${failure.url!"No disponible"}</dd>
+                                        <dt class="col-sm-3">Selector utilizado</dt>
+                                        <dd class="col-sm-9 text-break"><code>${failure.selectorUsed!"No se selecciono un elemento"}</code></dd>
+                                        <#if (failure.selectors)?has_content>
+                                            <dt class="col-sm-3">Selectores configurados</dt>
+                                            <dd class="col-sm-9">
+                                                <ul class="mb-0 ps-3">
+                                                    <#list failure.selectors as selector>
+                                                        <li class="text-break"><code>${selector}</code></li>
+                                                    </#list>
+                                                </ul>
+                                            </dd>
+                                        </#if>
+                                    </dl>
+                                    <div class="alert alert-danger">
+                                        <h6>Error original: ${failure.exceptionType!"Fallo de verificacion"}</h6>
+                                        <pre class="mb-0 text-break" style="white-space: pre-wrap">${failure.message!"Sin mensaje adicional"}</pre>
+                                    </div>
+                                    <#if (failure.verifications)?has_content>
+                                        <h6>Detalle de las verificaciones</h6>
+                                        <p class="small text-muted">En comparaciones de contenido, el valor evaluado es el obtenido y el valor de comparaci&oacute;n es el esperado.</p>
+                                        <div class="table-responsive">
+                                            <table class="table table-bordered table-sm">
+                                                <thead>
+                                                <tr>
+                                                    <th scope="col">Regla</th>
+                                                    <th scope="col">Valor evaluado</th>
+                                                    <th scope="col">Valor de comparaci&oacute;n</th>
+                                                    <th scope="col">Resultado</th>
+                                                </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <@failureVerificationRows verifications=failure.verifications />
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </#if>
+                                    <#if (failure.screenshotPath)?has_content>
+                                        <figure class="mt-3">
+                                            <figcaption class="fw-bold mb-2">Captura del navegador al fallar</figcaption>
+                                            <img class="img-fluid border rounded" src="${failure.screenshotPath}"
+                                                 alt="Captura del paso con fallo: ${failure.actionId!''}" loading="lazy">
+                                        </figure>
+                                        <a class="btn btn-outline-primary btn-sm me-2 mb-2" href="${failure.screenshotPath}" download>Descargar captura</a>
+                                    <#else>
+                                        <p class="text-muted">No hay captura del navegador disponible para este fallo.</p>
+                                    </#if>
+                                    <#if (failure.detailsPath)?has_content>
+                                        <a class="btn btn-outline-secondary btn-sm mb-2" href="${failure.detailsPath}" download>Descargar diagn&oacute;stico</a>
+                                    </#if>
+                                    <#if (failure.captureProblems)?has_content>
+                                        <div class="alert alert-warning mt-3 mb-0">
+                                            <h6>Limitaciones al recopilar evidencia</h6>
+                                            <ul class="mb-0">
+                                                <#list failure.captureProblems as problem>
+                                                    <li class="text-break">${problem}</li>
+                                                </#list>
+                                            </ul>
+                                        </div>
+                                    </#if>
+                                </div>
+                            </article>
+                        <#else>
+                            <p class="text-muted">No se registraron fallos durante la ejecuci&oacute;n.</p>
+                        </#list>
+                    </section>
                 </div>
                 <div class="tab-pane fade" id="pills-contexto" role="tabpanel" aria-labelledby="pills-contexto-tab"
                      tabindex="0">
@@ -271,7 +371,7 @@
 
 
 <script>
-    <#include "main.js" parse=false encoding="ISO-8859-1"/>
+    <#include "main.js" parse=false encoding="UTF-8"/>
 </script>
 </body>
 </html>

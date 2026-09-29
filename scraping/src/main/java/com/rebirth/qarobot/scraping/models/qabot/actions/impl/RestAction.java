@@ -1,11 +1,19 @@
 package com.rebirth.qarobot.scraping.models.qabot.actions.impl;
 
 import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.Configuration;
+import com.jayway.jsonpath.DocumentContext;
+import com.jayway.jsonpath.spi.json.Jackson3JsonProvider;
+import com.jayway.jsonpath.spi.mapper.Jackson3MappingProvider;
 import com.rebirth.qarobot.scraping.SeleniumHelper;
 import com.rebirth.qarobot.scraping.models.qabot.actions.Action;
 import com.rebirth.qarobot.scraping.utils.InterpolationResult;
-import kong.unirest.*;
-import kong.unirest.json.JSONException;
+import kong.unirest.HttpRequest;
+import kong.unirest.HttpRequestWithBody;
+import kong.unirest.HttpResponse;
+import kong.unirest.UnirestInstance;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import lombok.EqualsAndHashCode;
 import lombok.extern.log4j.Log4j2;
 import com.rebirth.qarobot.commons.di.annotations.scopes.ChildComponent;
@@ -17,6 +25,7 @@ import com.rebirth.qarobot.commons.di.enums.PatternEnum;
 
 import javax.inject.Inject;
 import java.awt.*;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,6 +38,12 @@ import java.util.regex.Pattern;
 @ChildComponent
 @EqualsAndHashCode(callSuper = true)
 public final class RestAction extends Action<RestActionType> {
+
+    private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
+    private static final Configuration JSON_PATH = Configuration.builder()
+            .jsonProvider(new Jackson3JsonProvider(JSON_MAPPER))
+            .mappingProvider(new Jackson3MappingProvider(JSON_MAPPER))
+            .build();
 
     private final AtomicReference<String> payload = new AtomicReference<>();
     private final UnirestInstance unirestInstance;
@@ -63,7 +78,7 @@ public final class RestAction extends Action<RestActionType> {
             while (matcher.find()) {
                 String key = matcher.group(Constantes.VALUE);
                 String value = this.seleniumHelper.getValueFormContext(key);
-                matcher.appendReplacement(sb, value);
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(value));
             }
             matcher.appendTail(sb);
             String newValues = sb.toString();
@@ -102,26 +117,23 @@ public final class RestAction extends Action<RestActionType> {
 
             processHeaders(request, requestHeaders);
 
+            HttpResponse<String> response;
             if (hasBody) {
                 String requestBody = this.payload.get();
                 log.info("JSON -> {}", requestBody);
 
-                HttpRequestWithBody requestWithBody = (HttpRequestWithBody) request;
-                HttpResponse<JsonNode> response;
-                try {
-                    JsonNode jsonNode = new JsonNode(requestBody);
-                    response = requestWithBody.body(jsonNode).asJson();
-                } catch (JSONException jsonException) {
-                    response = requestWithBody.body(requestBody).asJson();
+                if (!(request instanceof HttpRequestWithBody requestWithBody)) {
+                    throw new IllegalArgumentException("El método " + requestMethod + " no admite body");
                 }
-
-                status = response.getStatus();
-                responseBody = response.getBody();
+                response = requestWithBody.body(requestBody).asString();
             } else {
-                HttpResponse<JsonNode> response = request.asJson();
-                status = response.getStatus();
-                responseBody = response.getBody();
+                response = request.asString();
             }
+            status = response.getStatus();
+            String body = response.getBody();
+            responseBody = body == null || body.isBlank()
+                    ? JSON_MAPPER.getNodeFactory().nullNode()
+                    : JSON_MAPPER.readTree(body);
         }
     }
 
@@ -148,6 +160,7 @@ public final class RestAction extends Action<RestActionType> {
         this.element = null;
         this.actionDto = null;
         this.responseBody = null;
+        this.payload.set(null);
         this.hasBody = false;
         this.verificacionesOK = false;
         this.status = 0;
@@ -155,15 +168,16 @@ public final class RestAction extends Action<RestActionType> {
 
     private void processToStorageBody() {
         List<SetType> storage = this.actionDto.getStorage();
-        if (Objects.nonNull(storage)) {
-            String json = responseBody.toPrettyString();
+        if (Objects.nonNull(storage) && !storage.isEmpty()) {
+            DocumentContext json = JsonPath.using(JSON_PATH).parse(responseBody.toString());
 
             for (SetType setValue : storage) {
                 String key = setValue.getKey();
                 String path = setValue.getValue();
-                String salida = JsonPath.compile(path)
-                        .read(json)
-                        .toString();
+                Object extracted = json.read(path);
+                String salida = extracted instanceof Map<?, ?> || extracted instanceof Collection<?>
+                        ? JSON_MAPPER.writeValueAsString(extracted)
+                        : String.valueOf(extracted);
                 this.seleniumHelper.addValue2Contexto(key, salida);
             }
         }

@@ -20,8 +20,7 @@ public interface RecordModule {
         try {
             return new MyQAVideoRecorder(selectedScreen.getDefaultConfiguration(), movieFolder);
         } catch (IOException | AWTException e) {
-            e.printStackTrace();
-            return null;
+            throw new IllegalStateException("No se pudo iniciar la grabación de pantalla", e);
         }
     }
 

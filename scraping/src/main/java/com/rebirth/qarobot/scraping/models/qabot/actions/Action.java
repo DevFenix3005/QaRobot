@@ -7,6 +7,7 @@ import org.openqa.selenium.WebElement;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.BaseActionType;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.BaseActionTypeWithSelectorAndTimeOut;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.BaseActionTypeWithTimeout;
+import com.rebirth.qarobot.commons.models.dtos.qarobot.ChooseActionType;
 import com.rebirth.qarobot.scraping.SeleniumHelper;
 
 import java.awt.*;
@@ -49,7 +50,8 @@ public abstract class Action<T extends BaseActionType> extends ActionLifeCycle<T
             log.info("Retardo en la ejecucion de la accion");
             this.seleniumHelper.delay((baseActionTypeWithTimeout).getTimeout().longValue());
         }
-        if (actionDto instanceof BaseActionTypeWithSelectorAndTimeOut baseActionTypeWithSelectorAndTimeOut) {
+        if (actionDto instanceof BaseActionTypeWithSelectorAndTimeOut baseActionTypeWithSelectorAndTimeOut
+                && !(actionDto instanceof ChooseActionType)) {
             log.info("Buscando elemento");
             this.element = this.seleniumHelper.getWebElement(baseActionTypeWithSelectorAndTimeOut);
         }

@@ -21,7 +21,15 @@ public class ActionRunner implements Runnable {
     @Override
     public void run() {
         Action<? extends BaseActionType> action = this.runLifeCycle();
-        action.run();
+        try {
+            action.run();
+        } catch (StopActionException stop) {
+            // An explicit stop is control flow, not a failed test.
+            throw stop;
+        } catch (RuntimeException | AssertionError failure) {
+            action.getSeleniumHelper().captureFailure(baseActionDto, failure);
+            throw failure;
+        }
     }
 
     @SuppressWarnings(value = "unchecked")

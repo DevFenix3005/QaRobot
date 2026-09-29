@@ -20,12 +20,6 @@ public final class ChooseAction extends Action<ChooseActionType> {
     }
 
     @Override
-    public void beforeExecute() {
-        super.beforeExecute();
-        this.element = this.seleniumHelper.getWebElement(this.actionDto);
-    }
-
-    @Override
     public void execute() {
         this.seleniumHelper.setValueToVadiinsUglyDropdown(this.actionDto);
     }

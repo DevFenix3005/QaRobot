@@ -33,6 +33,7 @@ public class MainFrame extends JFrame {
         super(generateTitle());
         this.myMainView = (MyMainView) jPanel;
         getContentPane().add(myMainView);
+        setMinimumSize(new Dimension(940, 680));
         setIcon();
         setWindowListeners();
     }
@@ -50,9 +51,15 @@ public class MainFrame extends JFrame {
             @Override
             public void windowClosing(WindowEvent e) {
                 super.windowClosing(e);
+                UiTheme.shutdown();
                 for (Disposable disposable : myMainView.getDisposables()) {
                     disposable.dispose();
                 }
+            }
+
+            @Override
+            public void windowClosed(WindowEvent e) {
+                UiTheme.shutdown();
             }
 
             @Override

@@ -52,21 +52,19 @@ public abstract class FreemarkerModule {
 
             return cfg;
         } catch (IOException ioException) {
-            log.error("Read/Write exception...", ioException);
-            return null;
+            throw new IllegalStateException("No se encontraron las plantillas del reporte en "
+                    + configuracion.getDashboardtemplateHome() + ". Configura -Dqarobot.home con la carpeta de la aplicacion.", ioException);
         }
     }
 
     @Provides
     @ChildComponent
     static Template templateProvider(Configuration configuration) {
-        Template template = null;
         try {
-            template = configuration.getTemplate("index.ftl");
+            return configuration.getTemplate("index.ftl");
         } catch (IOException ioException) {
-            log.error("Read/Write exception...", ioException);
+            throw new IllegalStateException("No se pudo cargar dashboardtemplate/index.ftl", ioException);
         }
-        return template;
     }
 
 

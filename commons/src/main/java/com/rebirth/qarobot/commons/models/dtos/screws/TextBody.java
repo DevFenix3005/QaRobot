@@ -1,7 +1,7 @@
 package com.rebirth.qarobot.commons.models.dtos.screws;
 
-import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlCData;
-import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlText;
+import tools.jackson.dataformat.xml.annotation.JacksonXmlCData;
+import tools.jackson.dataformat.xml.annotation.JacksonXmlText;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

@@ -3,8 +3,11 @@ package com.rebirth.qarobot.app.main;
 import lombok.extern.log4j.Log4j2;
 import com.rebirth.qarobot.app.di.AppComponent;
 import com.rebirth.qarobot.app.di.DaggerAppComponent;
+import com.rebirth.qarobot.app.ui.UiTheme;
 
 import javax.swing.*;
+import java.awt.GraphicsEnvironment;
+import java.awt.Rectangle;
 
 
 @Log4j2
@@ -22,18 +25,21 @@ public class Main {
     }
 
     private static void launchGui() {
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException |
-                 UnsupportedLookAndFeelException e) {
-            e.printStackTrace();
-        }
         if (appComponent != null) {
-            JFrame mainFrame = appComponent.getMainFrame();
-            mainFrame.setVisible(true);
-            mainFrame.setLocationRelativeTo(null);
-            mainFrame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-            mainFrame.pack();
+            try {
+                UiTheme.initialize();
+                JFrame mainFrame = appComponent.getMainFrame();
+                mainFrame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+                mainFrame.pack();
+                Rectangle available = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+                mainFrame.setSize(Math.min(mainFrame.getWidth(), available.width),
+                        Math.min(mainFrame.getHeight(), available.height));
+                mainFrame.setLocationRelativeTo(null);
+                mainFrame.setVisible(true);
+            } catch (RuntimeException e) {
+                log.error("No se pudo iniciar QaRobot", e);
+                JOptionPane.showMessageDialog(null, e.getMessage(), "No se pudo iniciar QaRobot", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 

@@ -1,21 +1,23 @@
 package com.rebirth.qarobot.app.di.modules;
 
-import com.thedeanda.lorem.Lorem;
-import com.thedeanda.lorem.LoremIpsum;
-import dagger.Module;
-import dagger.Provides;
-import org.apache.logging.log4j.Logger;
-import com.rebirth.qarobot.app.utils.ComboBoxScreenModel;
-import com.rebirth.qarobot.record.di.RecordComponent;
-import com.rebirth.qarobot.scraping.di.ScrappingComponent;
-
-import javax.inject.Singleton;
 import java.awt.*;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Random;
+
+import javax.inject.Singleton;
+
+import com.rebirth.qarobot.app.utils.ComboBoxScreenModel;
+import com.rebirth.qarobot.record.di.RecordComponent;
+import com.rebirth.qarobot.scraping.di.ScrappingComponent;
+import com.thedeanda.lorem.Lorem;
+import com.thedeanda.lorem.LoremIpsum;
+
+import dagger.Module;
+import dagger.Provides;
 
 @Module(subcomponents = {
         RecordComponent.class,
@@ -23,15 +25,13 @@ import java.util.Random;
 })
 public abstract class AppModule {
 
-    private static final Logger log = org.apache.logging.log4j.LogManager.getLogger(AppModule.class);
-
     private AppModule() {
     }
 
     @Singleton
     @Provides
     public static Random randomProvider() {
-        return new Random();
+        return new SecureRandom();
     }
 
     @Singleton
@@ -49,19 +49,6 @@ public abstract class AppModule {
         symbols.setGroupingSeparator(',');
         df.setDecimalFormatSymbols(symbols);
         return df;
-    }
-
-
-    @Singleton
-    @Provides
-    public static MessageDigest md5Provider() {
-        try {
-            return MessageDigest.getInstance("MD5");
-        } catch (NoSuchAlgorithmException e) {
-            log.error("NoSuchAlgorithmException", e);
-            System.exit(-1);
-            return null;
-        }
     }
 
     @Singleton

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ESTE EJEMPLO DEBE FALLAR: es una demostracion del diagnostico automatico.
+     Esperado: 1 verificacion fallida, 1 verificacion correcta y 1 accion fallida.
+     El reporte tendra 2 evidencias, cada una con PNG y TXT dentro de evidence/.
+     No hace falta activar la grabacion de video. La pagina esta incluida en el XML. -->
+<qarobot xmlns="https://www.qarobot.rebirth.com.mx">
+    <configuration/>
+    <open id="abrir-evidencia" desc="Abrir la demo local de fallos intencionales" order="1" timeout="0"
+          url="data:text/html;charset=utf-8,%3C!doctype%20html%3E%0A%3Chtml%20lang%3D%22es%22%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3EQaRobot%20-%20Evidencia%20de%20fallos%3C%2Ftitle%3E%0A%3Cstyle%3Ebody%7Bfont%3A18px%20system-ui%3Bbackground%3A%23eef2f7%3Bcolor%3A%23172235%3Bmargin%3A40px%7Dmain%7Bmax-width%3A680px%3Bmargin%3Aauto%3Bpadding%3A32px%3Bbackground%3Awhite%3Bborder-radius%3A16px%7Dbutton%7Bfont%3Ainherit%3Bpadding%3A12px%3Bcursor%3Apointer%7D%23resultado%7Bfont-size%3A28px%3Bcolor%3A%23b42318%3Bfont-weight%3Abold%7D%23continuacion%7Bpadding%3A16px%3Bbackground%3A%23eef2ff%7D%3C%2Fstyle%3E%0A%3Cmain%3E%3Ch1%3EEvidencia%20automatica%3C%2Fh1%3E%3Cp%3EEsta%20pagina%20provoca%20dos%20fallos%20de%20prueba%20de%20forma%20intencional.%3C%2Fp%3E%0A%3Cp%3EEstado%20real%20del%20pedido%3A%3C%2Fp%3E%3Cp%20id%3D%22resultado%22%3EPENDIENTE%3C%2Fp%3E%0A%3Cp%3ELa%20primera%20verificacion%20espera%20APROBADO%3A%20la%20captura%20debe%20mostrar%20PENDIENTE.%3C%2Fp%3E%0A%3Cbutton%20id%3D%22continuar%22%20onclick%3D%22document.getElementById('continuacion').textContent%3D'CONTINUO_DESPUES_DEL_FALLO'%22%3EContinuar%20despues%20del%20primer%20fallo%3C%2Fbutton%3E%0A%3Cp%20id%3D%22continuacion%22%3EAUN_NO_CONTINUA%3C%2Fp%3E%0A%3Cp%3EEl%20boton%20con%20ID%20boton-inexistente%20no%20existe.%20Buscarlo%20producira%20el%20segundo%20fallo%20y%20su%20captura.%3C%2Fp%3E%3C%2Fmain%3E%3C%2Fhtml%3E"/>
+    <!-- Fallo 1: compara PENDIENTE contra APROBADO, captura el estado y continua. -->
+    <verify id="fallo-verificacion" desc="FALLO INTENCIONAL: se espera APROBADO pero se obtiene PENDIENTE"
+            order="2" timeout="0" waitTimeout="1000" elementStatus="CONTENT" value="APROBADO">
+        <selector by="ID">resultado</selector>
+    </verify>
+    <click id="continuar" desc="Continuar despues de la verificacion fallida" order="3" timeout="0" waitTimeout="1000">
+        <selector by="ID">continuar</selector>
+    </click>
+    <verify id="confirmar-continuacion" desc="Confirmar que se ejecutaron los pasos siguientes"
+            order="4" timeout="0" waitTimeout="1000" elementStatus="CONTENT" value="CONTINUO_DESPUES_DEL_FALLO">
+        <selector by="ID">continuacion</selector>
+    </verify>
+    <!-- Fallo 2: al vencer waitTimeout se captura el error y se detiene el flujo. -->
+    <click id="fallo-timeout" desc="FALLO INTENCIONAL: buscar un boton inexistente durante 1200 ms"
+           order="5" timeout="0" waitTimeout="1200">
+        <selector by="ID">boton-inexistente</selector>
+    </click>
+</qarobot>

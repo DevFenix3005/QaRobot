@@ -4,11 +4,15 @@ import com.rebirth.qarobot.commons.models.dtos.qarobot.BaseActionType;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.BaseActionTypeWithSelectorAndTimeOut;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.BaseActionTypeWithSelectorLambdaAndTimeOut;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.ChooseActionType;
+import com.rebirth.qarobot.commons.models.dtos.qarobot.ClickActionType;
+import com.rebirth.qarobot.commons.models.dtos.qarobot.ReadActionType;
+import com.rebirth.qarobot.commons.models.dtos.qarobot.WriteActionType;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.SelectorType;
 import com.rebirth.qarobot.scraping.models.qabot.Value;
 import com.rebirth.qarobot.scraping.utils.InterpolationResult;
 import org.openqa.selenium.WebElement;
 import com.rebirth.qarobot.commons.models.dtos.Verificador;
+import com.rebirth.qarobot.commons.models.dtos.FailureEvidence;
 import com.rebirth.qarobot.commons.models.dtos.dialogs.TitleIconAndMsgPojo;
 import com.rebirth.qarobot.commons.utils.PuaseExecutionFromStopAction;
 import com.rebirth.qarobot.commons.utils.SendInfo2View;
@@ -16,12 +20,16 @@ import com.rebirth.qarobot.commons.utils.SendQaContext2View;
 import com.rebirth.qarobot.commons.utils.ShowInDialog;
 
 import java.awt.Color;
+import java.math.BigInteger;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
 public interface SeleniumHelper {
+
+    enum ElementReadiness { PRESENT, VISIBLE, CLICKABLE, EDITABLE }
 
     void addValue2Contexto(String key, Object value);
 
@@ -34,6 +42,14 @@ public interface SeleniumHelper {
     boolean verificacionesOk();
 
     List<Verificador> getVerificadores();
+
+    default void initializeFailureEvidence(Path reportDirectory) {}
+
+    default void captureFailure(BaseActionType action, Throwable failure) {}
+
+    default List<FailureEvidence> getFailureEvidence() {
+        return List.of();
+    }
 
     void cleanContexto();
 
@@ -67,35 +83,60 @@ public interface SeleniumHelper {
 
     //BaseActionTypeWithSelectorAndTimeOut
     default WebElement getWebElement(BaseActionTypeWithSelectorAndTimeOut baseActionTypeWithSelectorAndTimeOut) {
-        return getWebElement(baseActionTypeWithSelectorAndTimeOut.getId(), baseActionTypeWithSelectorAndTimeOut.getSelector());
+        ElementReadiness readiness = ElementReadiness.PRESENT;
+        if (baseActionTypeWithSelectorAndTimeOut instanceof WriteActionType) {
+            readiness = ElementReadiness.EDITABLE;
+        } else if (baseActionTypeWithSelectorAndTimeOut instanceof ClickActionType
+                || baseActionTypeWithSelectorAndTimeOut instanceof ChooseActionType) {
+            readiness = ElementReadiness.CLICKABLE;
+        } else if (baseActionTypeWithSelectorAndTimeOut instanceof ReadActionType) {
+            readiness = ElementReadiness.VISIBLE;
+        }
+        return getWebElement(baseActionTypeWithSelectorAndTimeOut.getId(),
+                baseActionTypeWithSelectorAndTimeOut.getSelector(), readiness,
+                baseActionTypeWithSelectorAndTimeOut.getWaitTimeout());
     }
 
     default WebElement getWebElement(BaseActionTypeWithSelectorLambdaAndTimeOut baseActionTypeWithSelectorAndTimeOut) {
-        return getWebElement(baseActionTypeWithSelectorAndTimeOut.getId(), baseActionTypeWithSelectorAndTimeOut.getSelector());
+        return getWebElement(baseActionTypeWithSelectorAndTimeOut.getId(),
+                baseActionTypeWithSelectorAndTimeOut.getSelector(), ElementReadiness.PRESENT,
+                baseActionTypeWithSelectorAndTimeOut.getWaitTimeout());
     }
 
     WebElement getWebElement(String id, List<SelectorType> selector);
 
+    WebElement getWebElement(String id, List<SelectorType> selector, ElementReadiness readiness, BigInteger waitTimeout);
+
+    default String getLastResolvedSelector() {
+        return null;
+    }
+
     default List<WebElement> getWebElements(BaseActionTypeWithSelectorAndTimeOut baseActionTypeWithSelectorAndTimeOut) {
-        return getWebElements(baseActionTypeWithSelectorAndTimeOut.getId(), baseActionTypeWithSelectorAndTimeOut.getSelector());
+        return getWebElements(baseActionTypeWithSelectorAndTimeOut.getId(), baseActionTypeWithSelectorAndTimeOut.getSelector(),
+                baseActionTypeWithSelectorAndTimeOut.getWaitTimeout());
     }
 
     default List<WebElement> getWebElements(BaseActionTypeWithSelectorLambdaAndTimeOut baseActionTypeWithSelectorAndTimeOut) {
-        return getWebElements(baseActionTypeWithSelectorAndTimeOut.getId(), baseActionTypeWithSelectorAndTimeOut.getSelector());
+        return getWebElements(baseActionTypeWithSelectorAndTimeOut.getId(), baseActionTypeWithSelectorAndTimeOut.getSelector(),
+                baseActionTypeWithSelectorAndTimeOut.getWaitTimeout());
     }
 
     List<WebElement> getWebElements(String id, List<SelectorType> selector);
 
+    List<WebElement> getWebElements(String id, List<SelectorType> selector, BigInteger waitTimeout);
+
 
     default String getValueFromWebElement(BaseActionTypeWithSelectorAndTimeOut baseActionTypeWithSelectorAndTimeOut) {
-        return getValueFromWebElement(baseActionTypeWithSelectorAndTimeOut.getId(), baseActionTypeWithSelectorAndTimeOut.getSelector());
+        return getValueFromWebElement(getWebElement(baseActionTypeWithSelectorAndTimeOut));
     }
 
     default String getValueFromWebElement(BaseActionTypeWithSelectorLambdaAndTimeOut baseActionTypeWithSelectorAndTimeOut) {
-        return getValueFromWebElement(baseActionTypeWithSelectorAndTimeOut.getId(), baseActionTypeWithSelectorAndTimeOut.getSelector());
+        return getValueFromWebElement(getWebElement(baseActionTypeWithSelectorAndTimeOut));
     }
 
     String getValueFromWebElement(String id, List<SelectorType> selector);
+
+    String getValueFromWebElement(WebElement element);
 
     void setValueToVadiinsUglyDropdown(ChooseActionType chooseActionType);
 

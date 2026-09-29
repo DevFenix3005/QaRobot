@@ -1,18 +1,33 @@
 package com.rebirth.qarobot.app.viewmodel;
 
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ItemEvent;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
+
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.filechooser.FileNameExtensionFilter;
+
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
 import com.google.common.io.Files;
-import io.reactivex.rxjava3.subjects.BehaviorSubject;
-import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
 import com.rebirth.qarobot.app.main.QAMaster;
 import com.rebirth.qarobot.commons.exceptions.NoQaRobotXmlValid;
 import com.rebirth.qarobot.commons.exceptions.NotFoundQaXmlFile;
 import com.rebirth.qarobot.commons.exceptions.NotFoundWebElement;
 import com.rebirth.qarobot.commons.models.dtos.Configuracion;
+import com.rebirth.qarobot.commons.models.dtos.QaRobotContext;
 import com.rebirth.qarobot.commons.models.dtos.dialogs.MyOwnIcos;
 import com.rebirth.qarobot.commons.models.dtos.dialogs.TitleIconAndMsgPojo;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.BaseActionType;
@@ -21,26 +36,10 @@ import com.rebirth.qarobot.commons.models.dtos.qarobot.SelectorType;
 import com.rebirth.qarobot.commons.models.dtos.tables.ActionColorAndExIfExits;
 import com.rebirth.qarobot.commons.models.dtos.toggle.PauseOrResumeState;
 import com.rebirth.qarobot.scraping.enums.Browser;
-import com.rebirth.qarobot.commons.models.dtos.QaRobotContext;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import javax.swing.*;
-import javax.swing.event.ChangeEvent;
-import javax.swing.filechooser.FileNameExtensionFilter;
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ItemEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.io.File;
-import java.io.IOException;
-import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
+import io.reactivex.rxjava3.subjects.BehaviorSubject;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Data
@@ -48,94 +47,86 @@ import java.util.concurrent.atomic.AtomicReference;
 public class MainViewModel {
 
     private final BehaviorSubject<List<BaseActionType>> actionDtos = BehaviorSubject.createDefault(Lists.newArrayList());
-    private final BehaviorSubject<String> statusBar = BehaviorSubject.createDefault("Ready!");
+
+    private final BehaviorSubject<String> statusBar = BehaviorSubject.createDefault("Selecciona una prueba XML para comenzar");
+
     private final BehaviorSubject<Boolean> grabar = BehaviorSubject.createDefault(Boolean.FALSE);
+
     private final BehaviorSubject<Integer> interacion = BehaviorSubject.createDefault(1);
+
     private final BehaviorSubject<Browser> browser = BehaviorSubject.createDefault(Browser.CHROME);
 
     private final BehaviorSubject<Boolean> searchButton = BehaviorSubject.createDefault(Boolean.TRUE);
+
     private final BehaviorSubject<Boolean> statusInitButton = BehaviorSubject.createDefault(Boolean.FALSE);
+
     private final BehaviorSubject<Boolean> statusReloadButton = BehaviorSubject.createDefault(Boolean.FALSE);
+
     private final BehaviorSubject<Boolean> pauseOrResumenStatus = BehaviorSubject.createDefault(Boolean.FALSE);
 
     private final BehaviorSubject<GraphicsDevice> selectedScreen = BehaviorSubject.create();
+
     private final BehaviorSubject<String> xmlPath = BehaviorSubject.create();
+
     private final BehaviorSubject<ActionColorAndExIfExits> interaccionData2ChangeAdvanceInTable = BehaviorSubject.create();
+
     private final BehaviorSubject<File> selectedFile = BehaviorSubject.create();
+
     private final BehaviorSubject<TitleIconAndMsgPojo> sendInfo2MyDialog = BehaviorSubject.create();
+
     private final BehaviorSubject<Boolean> hideMyDialog = BehaviorSubject.create();
+
     private final BehaviorSubject<PauseOrResumeState> pauseOrResumenActionExecution = BehaviorSubject.create();
 
     private final BehaviorSubject<QaRobotContext> showEvalTable = BehaviorSubject.create();
 
     private final QAMaster qaMaster;
-    private final MessageDigest md5;
+
     private final AtomicReference<String> md5Storage = new AtomicReference<>();
+
     private final Configuracion configuracion;
 
     @Inject
-    public MainViewModel(QAMaster qaMaster, MessageDigest md5, Configuracion configuracion) {
+    public MainViewModel(QAMaster qaMaster, Configuracion configuracion) {
         this.qaMaster = qaMaster;
-        this.md5 = md5;
         this.configuracion = configuracion;
     }
 
-    public final MouseAdapter chooseXmlPathMouseAdapter = new MouseAdapter() {
-        @Override
-        public void mouseClicked(MouseEvent e) {
-            JButton button = (JButton) e.getSource();
-            if (!button.isEnabled()) return;
-            if (SwingUtilities.isLeftMouseButton(e)) {
-                JFileChooser jFileChooser = new JFileChooser(configuracion.getXmlHome());
-                FileNameExtensionFilter filter = new FileNameExtensionFilter("Xmlenium Files", "xml");
-                jFileChooser.setFileFilter(filter);
-                int resultado = jFileChooser.showOpenDialog(null);
-                if (resultado == JFileChooser.APPROVE_OPTION) {
-                    try {
-                        MainViewModel.this.statusBar.onNext("Cargando....");
-                        File newXml = jFileChooser.getSelectedFile();
-                        storageFileAndSetMd5(newXml);
-                        loadXml2QaRobot();
-                    } catch (NoQaRobotXmlValid noQaRobotXmlValid) {
-                        MainViewModel.this.finishQaWithError(noQaRobotXmlValid);
-                    }
-                }
+    public void chooseXmlPath(Component owner) {
+        if (!Boolean.TRUE.equals(searchButton.getValue()))
+            return;
+        JFileChooser fileChooser = new JFileChooser(configuracion.getXmlHome());
+        fileChooser.setDialogTitle("Seleccionar prueba XML");
+        fileChooser.setFileFilter(new FileNameExtensionFilter("Pruebas QaRobot (*.xml)", "xml"));
+        if (fileChooser.showOpenDialog(owner) == JFileChooser.APPROVE_OPTION) {
+            selectedFile.onNext(fileChooser.getSelectedFile());
+            loadSelectedXml();
+        }
+    }
+
+    public void reloadQaRobot() {
+        if (!Boolean.TRUE.equals(statusReloadButton.getValue()))
+            return;
+        loadSelectedXml();
+    }
+
+    private void loadSelectedXml() {
+        File xml = selectedFile.getValue();
+        if (xml == null)
+            return;
+        statusBar.onNext("Cargando prueba XML…");
+        statusInitButton.onNext(false);
+        try {
+            HashCode hash = Files.asByteSource(xml).hash(Hashing.sha256());
+            md5Storage.set(hash.toString().toUpperCase(Locale.ROOT));
+            loadXml2QaRobot();
+            if (Boolean.TRUE.equals(statusInitButton.getValue())) {
+                statusBar.onNext("Prueba lista para ejecutar");
             }
+        } catch (IOException | NoQaRobotXmlValid ex) {
+            finishQaWithError(ex);
         }
-
-        private void storageFileAndSetMd5(File xml) {
-            String md5Sing = this.getMd5FromFile(xml);
-            md5Storage.set(md5Sing);
-            selectedFile.onNext(xml);
-            statusBar.onNext("XML Cargado y listo para iniciar! sha256 " + md5Sing);
-        }
-
-        private String getMd5FromFile(File xml) {
-            try {
-                HashCode hash = Files.asByteSource(xml).hash(Hashing.sha256());
-                return hash.toString().toUpperCase(Locale.ROOT);
-            } catch (IOException ioException) {
-                return "";
-            }
-        }
-
-    };
-
-    public final MouseAdapter reloadQaRobotMouseAdapter = new MouseAdapter() {
-        @Override
-        public void mouseClicked(MouseEvent e) {
-            JButton button = (JButton) e.getSource();
-            if (!button.isEnabled()) return;
-            if (SwingUtilities.isLeftMouseButton(e)) {
-                try {
-                    loadXml2QaRobot();
-                } catch (NoQaRobotXmlValid noQaRobotXmlValid) {
-                    MainViewModel.this.finishQaWithError(noQaRobotXmlValid);
-                }
-            }
-        }
-    };
-
+    }
 
     private void loadXml2QaRobot() {
         File xmlFile = selectedFile.getValue();
@@ -144,29 +135,29 @@ public class MainViewModel {
         }
     }
 
-
-    public final MouseAdapter initProcessorMouseAdapter = new MouseAdapter() {
-        @Override
-        public void mouseClicked(MouseEvent e) {
-            JButton button = (JButton) e.getSource();
-            if (!button.isEnabled()) return;
-            if (SwingUtilities.isLeftMouseButton(e)) {
-                MainViewModel.this.statusInitButton.onNext(false);
-                MainViewModel.this.statusReloadButton.onNext(false);
-                MainViewModel.this.searchButton.onNext(false);
-                MainViewModel.this.pauseOrResumenStatus.onNext(true);
-                MainViewModel.this.cleanTableColor();
-                new Thread(MainViewModel.this.qaMaster).start();
-            }
-        }
-    };
+    public void startQaRobot() {
+        if (!Boolean.TRUE.equals(statusInitButton.getValue()))
+            return;
+        pauseOrResumenActionExecution.onNext(PauseOrResumeState.NONE);
+        statusInitButton.onNext(false);
+        statusReloadButton.onNext(false);
+        searchButton.onNext(false);
+        pauseOrResumenStatus.onNext(true);
+        statusBar.onNext("Iniciando prueba…");
+        cleanTableColor();
+        new Thread(qaMaster, "qarobot-runner").start();
+    }
 
     public void changeComboItem(ItemEvent itemEvent) {
+        if (itemEvent.getStateChange() != ItemEvent.SELECTED)
+            return;
         Browser currentBrowser = (Browser) itemEvent.getItem();
         this.browser.onNext(currentBrowser);
     }
 
     public void changeComboItemGraphicsDevice(ItemEvent itemEvent) {
+        if (itemEvent.getStateChange() != ItemEvent.SELECTED)
+            return;
         GraphicsDevice graphicsDevice = (GraphicsDevice) itemEvent.getItem();
         this.selectedScreen.onNext(graphicsDevice);
     }
@@ -174,30 +165,39 @@ public class MainViewModel {
     public void cleanTableColor() {
         List<BaseActionType> currentList = actionDtos.getValue();
         if (currentList != null && !currentList.isEmpty()) {
-            for (int i = 0; i < currentList.size(); i++) {
-                BaseActionType baseActionDto = currentList.get(i);
-                Color color = i % 2 == 0 ? Color.LIGHT_GRAY : Color.WHITE;
-                interaccionData2ChangeAdvanceInTable.onNext(ActionColorAndExIfExits.create(baseActionDto, color));
-            }
+            actionDtos.onNext(new ArrayList<>(currentList));
         }
     }
 
     public void restartStatusButtons() {
+        boolean canRestart = Boolean.TRUE.equals(statusInitButton.getValue())
+                || Boolean.TRUE.equals(pauseOrResumenStatus.getValue());
         this.searchButton.onNext(true);
-        this.statusInitButton.onNext(false);
-        this.statusReloadButton.onNext(false);
+        this.statusInitButton.onNext(canRestart && qaMaster.getQarobot() != null && qaMaster.getQarobot().isValidXml());
+        this.statusReloadButton.onNext(selectedFile.getValue() != null);
         this.pauseOrResumenStatus.onNext(false);
 
     }
 
     public void finishQa() {
-        restartStatusButtons();
-        JOptionPane.showMessageDialog(null, "Prueba Terminada", "QA Flux", JOptionPane.INFORMATION_MESSAGE);
+        Runnable finish = () -> {
+            restartStatusButtons();
+            statusBar.onNext("Prueba terminada");
+            sendInfo2MyDialog.onNext(TitleIconAndMsgPojo.create("Prueba completada",
+                    "<html><body><p>La ejecución terminó correctamente.</p>"
+                            + "<p>Consulta el reporte HTML para revisar los resultados.</p></body></html>",
+                    MyOwnIcos.INFO_MDPI));
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            finish.run();
+        } else {
+            SwingUtilities.invokeLater(finish);
+        }
     }
 
     public void finishQaWithError(Throwable ex) {
         restartStatusButtons();
-        statusBar.onNext("Error en la aplicacion: " + ex.getMessage());
+        statusBar.onNext("No se pudo completar la prueba");
         log.error("Error en la aplicacion", ex);
         String payload;
         String htmlTemplate = "<!DOCTYPE html>" +
@@ -207,7 +207,7 @@ public class MainViewModel {
                 "<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">" +
                 "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">" +
                 "</head>\n" +
-                "<body style=\"background-color:lightgrey;\">" +
+                "<body>" +
                 "%s" +
                 "</body>" +
                 "</html>";
@@ -233,11 +233,11 @@ public class MainViewModel {
             payload = "<h3>Error en la validacion del XML</h3>";
             payload += "<ul>" + Joiner.on(" ").join(errorItems) + "</ul>";
         } else {
-            payload = "<p style=\"text-align: justify; font-size: small; color: black; \">" + ex.getMessage() + "</p>";
+            payload = "<p>" + ex.getMessage() + "</p>";
         }
 
         TitleIconAndMsgPojo errorMessage = TitleIconAndMsgPojo.create(
-                "Error!!",
+                "No se pudo completar la prueba",
                 String.format(htmlTemplate, payload),
                 MyOwnIcos.ERROR_MDPI
         );
@@ -259,7 +259,6 @@ public class MainViewModel {
     public void checkAction(ItemEvent itemEvent) {
         grabar.onNext(itemEvent.getStateChange() == ItemEvent.SELECTED);
     }
-
 
     public void pauseOrResumenButtonListener(ActionEvent ev) {
         PauseOrResumeState pauseOrResumeState;

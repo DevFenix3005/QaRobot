@@ -2,7 +2,6 @@ package com.rebirth.qarobot.scraping.impl;
 
 import com.github.freva.asciitable.AsciiTable;
 import com.github.freva.asciitable.Column;
-import com.google.common.base.StandardSystemProperty;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 import com.rebirth.qarobot.scraping.models.qabot.actions.Action;
@@ -22,6 +21,7 @@ import com.rebirth.qarobot.commons.exceptions.NotFoundQaRobotConfigurationEx;
 import com.rebirth.qarobot.commons.exceptions.NotFoundWebElement;
 import com.rebirth.qarobot.commons.exceptions.StopActionException;
 import com.rebirth.qarobot.commons.models.dtos.QarobotWrapper;
+import com.rebirth.qarobot.commons.models.dtos.Configuracion;
 import com.rebirth.qarobot.commons.models.dtos.Verificador;
 import com.rebirth.qarobot.commons.models.dtos.dialogs.MyOwnIcos;
 import com.rebirth.qarobot.commons.models.dtos.dialogs.TitleIconAndMsgPojo;
@@ -58,17 +58,20 @@ public final class QaRobotXmlImpl implements QaRobotXml {
     private final SeleniumHelper seleniumHelper;
     private final Map<Class<? extends BaseActionType>, Action<? extends BaseActionType>> actionMap;
     private final Template template;
+    private final Configuracion configuracion;
     private QarobotWrapper mainQaRobot;
 
     @Inject
     public QaRobotXmlImpl(
             SeleniumHelper seleniumHelper,
             Map<Class<? extends BaseActionType>, Action<? extends BaseActionType>> actionMap,
-            Template template
+            Template template,
+            Configuracion configuracion
     ) {
         this.seleniumHelper = seleniumHelper;
         this.actionMap = actionMap;
         this.template = template;
+        this.configuracion = configuracion;
     }
 
     public void setQaRobot(QarobotWrapper mainQaRobot) {
@@ -78,6 +81,7 @@ public final class QaRobotXmlImpl implements QaRobotXml {
     public boolean flux() {
         Throwable exception = null;
         try {
+            this.seleniumHelper.initializeFailureEvidence(mainQaRobot.getDashboardExitFile().toPath());
             this.seleniumHelper.setInitialTime(System.currentTimeMillis());
             this.robotConfigurationProcess();
             this.startInvokeActions();
@@ -104,8 +108,11 @@ public final class QaRobotXmlImpl implements QaRobotXml {
             } else {
                 exception = throwable;
             }
+        } catch (RuntimeException failure) {
+            exception = failure;
         } finally {
             if (exception != null) {
+                this.seleniumHelper.captureFailure(seleniumHelper.getCurrentAction(), exception);
 
                 String exMessage = exception.getMessage();
                 exMessage = Objects.isNull(exMessage) ? "Sin mensaje" : exMessage;
@@ -116,28 +123,39 @@ public final class QaRobotXmlImpl implements QaRobotXml {
             }
             debugMapContainer();
             try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                 Writer out = new OutputStreamWriter(baos, StandardCharsets.ISO_8859_1)
+                 Writer out = new OutputStreamWriter(baos, StandardCharsets.UTF_8)
             ) {
                 File indexFile = generateDashbord(out, exception);
+                java.nio.file.Files.createDirectories(indexFile.toPath().getParent());
+                out.flush();
                 Files.asByteSink(indexFile).write(baos.toByteArray());
-                String userHome = StandardSystemProperty.USER_DIR.value();
-                File dashboardFolder = new File(userHome + File.separator + "dashboardtemplate");
+                File dashboardFolder = configuracion.getDashboardtemplateHome();
                 File[] assets = dashboardFolder.listFiles(new AssetsFilterFile());
                 if (Objects.nonNull(assets)) {
                     for (File asset : assets) {
                         copyAssets(asset);
                     }
                 }
-                Desktop.getDesktop().browse(indexFile.toURI());
-            } catch (TemplateException notFoundQaRobotConfigurationEx) {
-                exception = notFoundQaRobotConfigurationEx;
-                log.error("QaRobotXml::flux->TemplateException", notFoundQaRobotConfigurationEx);
-            } catch (IOException notFoundQaRobotConfigurationEx) {
-                exception = notFoundQaRobotConfigurationEx;
-                log.error("QaRobotXml::flux->IOException", notFoundQaRobotConfigurationEx);
+                openReport(indexFile);
+            } catch (TemplateException | IOException reportFailure) {
+                if (exception == null) exception = reportFailure;
+                else exception.addSuppressed(reportFailure);
+                log.error("No se pudo generar el reporte", reportFailure);
             }
         }
-        return exception == null;
+        return exception == null && this.seleniumHelper.verificacionesOk();
+    }
+
+    private void openReport(File indexFile) {
+        if (Boolean.getBoolean("qarobot.headless") || GraphicsEnvironment.isHeadless()
+                || !Boolean.parseBoolean(System.getProperty("qarobot.openReport", "true"))) return;
+        try {
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                Desktop.getDesktop().browse(indexFile.toURI());
+            }
+        } catch (IOException | RuntimeException failure) {
+            log.warn("El reporte se guardo en {} pero no se pudo abrir", indexFile, failure);
+        }
     }
 
     @Override
@@ -228,7 +246,7 @@ public final class QaRobotXmlImpl implements QaRobotXml {
         Predicate<Verificador> errorAndNotSkipPredicate = okPredicate.negate().and(noSkipPredicate);
 
         String title = this.mainQaRobot.getFileName();
-        if (throwable != null) {
+        if (throwable != null || !this.seleniumHelper.verificacionesOk()) {
             title = "[¡¡Finalizo con Error!!]" + title;
         }
 
@@ -238,6 +256,7 @@ public final class QaRobotXmlImpl implements QaRobotXml {
         root.put("myConfigvalues", setValuesList);
         root.put("actionsdto", actionTypes);
         root.put("verificadors", listaVerificaion);
+        root.put("failureEvidence", this.seleniumHelper.getFailureEvidence());
         root.put("counterAcciones", actionTypes.size());
         root.put("counterPruebasOk", listaVerificaion.stream().filter(okAndNotSkipPredicate).count());
         root.put("counterPruebasErr", listaVerificaion.stream().filter(errorAndNotSkipPredicate).count());
@@ -245,7 +264,7 @@ public final class QaRobotXmlImpl implements QaRobotXml {
         root.put("execxml", Files.asCharSource(this.mainQaRobot.getXmlTempFile(), StandardCharsets.UTF_8).read());
         root.put("dashboartitle", title);
         Environment env = template.createProcessingEnvironment(root, out);
-        env.setOutputEncoding(StandardCharsets.ISO_8859_1.toString());
+        env.setOutputEncoding(StandardCharsets.UTF_8.toString());
         env.process();
         return file;
     }
@@ -266,7 +285,7 @@ public final class QaRobotXmlImpl implements QaRobotXml {
                     prop.load(is);
                     prop.forEach((key, value) -> this.seleniumHelper.addValue2Contexto(key.toString(), value.toString()));
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    log.error("No se pudo cargar el archivo de propiedades " + propertiesPath, e);
                 }
             }
 

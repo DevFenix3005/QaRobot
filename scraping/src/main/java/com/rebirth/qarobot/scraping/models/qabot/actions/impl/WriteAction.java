@@ -25,7 +25,6 @@ public final class WriteAction extends Action<WriteActionType> {
 
     @Override
     public void execute() {
-        this.element = this.seleniumHelper.getWebElement(this.actionDto);
         String value = this.actionDto.getValue();
         InterpolationResult interpolationResult = this.seleniumHelper.getInterpolationOfValueIfExistsOrGetRawValue(value);
 

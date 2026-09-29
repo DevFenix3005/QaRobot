@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Abrir desde Buscar XML y ejecutar con Chrome, Firefox o Edge.
+     La pagina esta incluida en este archivo: no usa servidor ni sitio externo.
+     La primera resolucion del driver puede requerir internet. -->
+<qarobot xmlns="https://www.qarobot.rebirth.com.mx">
+    <configuration>
+        <set key="name" value="QaRobot"/>
+    </configuration>
+    <open desc="Abrir formulario local" order="1" timeout="0" url="data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Chtml%20lang%3D%22es%22%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3EQaRobot%20-%20demo%20offline%3C%2Ftitle%3E%3Cbody%3E%3Ch1%20id%3D%22title%22%3EQaRobot%3C%2Fh1%3E%3Clabel%3ENombre%20%3Cinput%20id%3D%22name%22%3E%3C%2Flabel%3E%3Cbutton%20id%3D%22submit%22%20onclick%3D%22document.getElementById('result').textContent%3D'READY_'%2Bdocument.getElementById('name').value%22%3EVerificar%3C%2Fbutton%3E%3Cp%20id%3D%22result%22%3EWAITING%3C%2Fp%3E%3C%2Fbody%3E%3C%2Fhtml%3E"/>
+    <verify desc="Verificar titulo" order="2" timeout="0" value="text=eq.QaRobot">
+        <selector by="ID">title</selector>
+    </verify>
+    <write desc="Escribir nombre" order="3" timeout="0" value="${name}" enter="false">
+        <selector by="ID">name</selector>
+    </write>
+    <click desc="Enviar formulario" order="4" timeout="0">
+        <selector by="ID">submit</selector>
+    </click>
+    <read desc="Leer resultado" order="5" timeout="0" set="result">
+        <selector by="ID">result</selector>
+    </read>
+    <verify desc="Verificar resultado" order="6" timeout="0" value="text=eq.READY_QaRobot">
+        <selector by="ID">result</selector>
+    </verify>
+</qarobot>

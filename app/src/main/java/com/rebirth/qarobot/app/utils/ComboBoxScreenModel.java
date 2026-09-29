@@ -13,6 +13,9 @@ public class ComboBoxScreenModel implements ComboBoxModel<GraphicsDevice> {
 
     public ComboBoxScreenModel(GraphicsDevice[] graphicsDevice) {
         this.graphicsDevices = graphicsDevice;
+        if (graphicsDevice.length > 0) {
+            this.selecterGraphicsDevice = graphicsDevice[0];
+        }
     }
 
     @Override

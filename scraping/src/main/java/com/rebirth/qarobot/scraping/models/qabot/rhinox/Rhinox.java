@@ -3,6 +3,7 @@ package com.rebirth.qarobot.scraping.models.qabot.rhinox;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import java.util.Map;
+import java.util.Objects;
 
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -16,15 +17,19 @@ public final class Rhinox {
     private final ScriptEngine scriptEngine;
 
     public Rhinox(ScriptEngine scriptEngine) {
-        this.scriptEngine = scriptEngine;
+        this.scriptEngine = Objects.requireNonNull(scriptEngine, "scriptEngine");
     }
 
     public void addProperties2Scope(Map<String, Object> properties) {
-        properties.forEach(this::addProperties2Scope);
+        synchronized (scriptEngine) {
+            properties.forEach(this::addProperties2Scope);
+        }
     }
 
     public void addProperties2Scope(String key, Object value) {
-        scriptEngine.put(key, value);
+        synchronized (scriptEngine) {
+            scriptEngine.put(key, value);
+        }
     }
 
     public Object runScript(VerifyActionType verifyActionDto) throws ScriptException {
@@ -34,9 +39,13 @@ public final class Rhinox {
     }
 
     public Object runScript(String id, String verifyScript) throws ScriptException {
-        log.info("Corriendo pueba con id: {}", id);
-        String iifeScript = "(function(){" + verifyScript + "})();";
-        return scriptEngine.eval(iifeScript);
+        Objects.requireNonNull(verifyScript, "verifyScript");
+        log.info("Corriendo prueba con id: {}", id);
+        String iifeScript = "(function(){\n" + verifyScript + "\n})();";
+        // A single GraalJS context must not be entered concurrently by different wrappers.
+        synchronized (scriptEngine) {
+            return scriptEngine.eval(iifeScript);
+        }
     }
 
 }

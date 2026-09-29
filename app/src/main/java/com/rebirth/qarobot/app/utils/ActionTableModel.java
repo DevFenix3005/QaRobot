@@ -1,61 +1,72 @@
 package com.rebirth.qarobot.app.utils;
 
-import com.google.common.collect.Lists;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.BaseActionType;
 import com.rebirth.qarobot.commons.models.dtos.qarobot.BaseActionTypeWithTimeout;
 
 import javax.swing.table.AbstractTableModel;
-import java.awt.*;
+import java.awt.Color;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-@EqualsAndHashCode(callSuper = true)
-@Data
 public class ActionTableModel extends AbstractTableModel {
 
     private final transient List<BaseActionType> actionDtoList;
-    private final List<Color> rowColours = Lists.newArrayList();
+    private final List<Color> rowColours;
 
     public ActionTableModel(List<BaseActionType> actionDtoList) {
-        this.actionDtoList = actionDtoList;
+        this.actionDtoList = List.copyOf(actionDtoList);
+        this.rowColours = new ArrayList<>(Collections.nCopies(actionDtoList.size(), null));
     }
 
-    public void setRowColour(int row, Color c) {
-        try {
-            rowColours.set(row, c);
-        } catch (IndexOutOfBoundsException indexOutOfBoundsException) {
-            rowColours.add(row, c);
-        }
+    public List<BaseActionType> getActionDtoList() {
+        return actionDtoList;
+    }
+
+    public void setRowColour(int row, Color colour) {
+        if (row < 0 || row >= getRowCount()) return;
+        rowColours.set(row, colour);
         fireTableRowsUpdated(row, row);
     }
 
     public Color getRowColour(int row) {
-        return rowColours.get(row);
+        return row >= 0 && row < rowColours.size() ? rowColours.get(row) : null;
+    }
+
+    public void clearRowColours() {
+        Collections.fill(rowColours, null);
+        if (getRowCount() > 0) {
+            fireTableRowsUpdated(0, getRowCount() - 1);
+        }
     }
 
     @Override
     public boolean isCellEditable(int rowIndex, int columnIndex) {
-        return columnIndex == 4;
+        return rowIndex >= 0 && rowIndex < getRowCount() && columnIndex == 4;
     }
-
 
     @Override
     public void setValueAt(Object value, int rowIndex, int columnIndex) {
-        BaseActionType action = this.actionDtoList.get(rowIndex);
-        if (columnIndex == 0) {
-            action.setId(value.toString());
-        } else if (columnIndex == 1) {
-            action.setDesc(value.toString());
-        } else if (columnIndex == 3) {
-            action.setOrder((Long) value);
-        } else if (columnIndex == 4) {
-            action.setSkip((Boolean) value);
+        if (rowIndex < 0 || rowIndex >= getRowCount()) return;
+        BaseActionType action = actionDtoList.get(rowIndex);
+        switch (columnIndex) {
+            case 0 -> action.setId(value == null ? null : value.toString());
+            case 1 -> action.setDesc(value == null ? null : value.toString());
+            case 3 -> {
+                if (!(value instanceof Number number)) return;
+                action.setOrder(number.longValue());
+            }
+            case 4 -> {
+                if (!(value instanceof Boolean skip)) return;
+                action.setSkip(skip);
+            }
+            default -> {
+                return;
+            }
         }
-
         fireTableCellUpdated(rowIndex, columnIndex);
     }
-
 
     @Override
     public int getRowCount() {
@@ -69,53 +80,40 @@ public class ActionTableModel extends AbstractTableModel {
 
     @Override
     public String getColumnName(int column) {
-        switch (column) {
-            case 0:
-                return "ID";
-            case 1:
-                return "Descripcion";
-            case 2:
-                return "Tiempo de espera";
-            case 3:
-                return "Numero de ejecucion";
-            case 4:
-                return "Omitida";
-            case 5:
-                return "Accion";
-            default:
-                return "UNK";
-        }
+        return switch (column) {
+            case 0 -> "ID";
+            case 1 -> "Descripción";
+            case 2 -> "Espera";
+            case 3 -> "Orden";
+            case 4 -> "Omitir";
+            case 5 -> "Acción";
+            default -> "";
+        };
     }
 
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
-        BaseActionType action = this.actionDtoList.get(rowIndex);
-        switch (columnIndex) {
-            case 0:
-                return action.getId();
-            case 1:
-                return action.getDesc();
-            case 2:
-                try {
-                    return ((BaseActionTypeWithTimeout) action).getTimeout();
-                } catch (ClassCastException classCastException) {
-                    return 0;
-                }
-            case 3:
-                return action.getOrder();
-            case 4:
-                return action.isSkip();
-            case 5:
-                return action.getClass().getSimpleName();
-            default:
-                return "UNK";
-        }
+        BaseActionType action = actionDtoList.get(rowIndex);
+        return switch (columnIndex) {
+            case 0 -> action.getId();
+            case 1 -> action.getDesc();
+            case 2 -> action instanceof BaseActionTypeWithTimeout timedAction
+                    ? timedAction.getTimeout() : BigInteger.ZERO;
+            case 3 -> action.getOrder();
+            case 4 -> action.isSkip();
+            case 5 -> action.getClass().getSimpleName().replaceFirst("(Action)?Type$", "");
+            default -> null;
+        };
     }
 
     @Override
     public Class<?> getColumnClass(int columnIndex) {
-        return this.getValueAt(0, columnIndex).getClass();
+        return switch (columnIndex) {
+            case 0, 1, 5 -> String.class;
+            case 2 -> BigInteger.class;
+            case 3 -> Long.class;
+            case 4 -> Boolean.class;
+            default -> Object.class;
+        };
     }
-
-
 }

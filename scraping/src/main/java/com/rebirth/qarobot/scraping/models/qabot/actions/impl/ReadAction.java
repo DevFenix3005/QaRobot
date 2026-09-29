@@ -21,7 +21,7 @@ public final class ReadAction extends Action<ReadActionType> {
 
     @Override
     public void execute() {
-        String value = this.seleniumHelper.getValueFromWebElement(this.actionDto);
+        String value = this.seleniumHelper.getValueFromWebElement(this.element);
         this.seleniumHelper.addValue2Contexto(this.actionDto.getSet(), value);
     }
 
